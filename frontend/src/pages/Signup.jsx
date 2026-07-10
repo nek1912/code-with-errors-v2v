@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { User, Mail, Lock, Loader2, ShieldCheck, ArrowRight } from 'lucide-react';
 import { authService } from '../services/auth';
 import { useAppStore } from '../store/useAppStore';
 
@@ -7,7 +9,7 @@ export default function Signup() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [userType, setUserType] = useState('user'); // 'user' or 'guardian'
+  const [userType, setUserType] = useState('user');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -17,16 +19,10 @@ export default function Signup() {
     e.preventDefault();
     setError('');
     setLoading(true);
-
     try {
       const { user } = await authService.register(name, email, password, userType);
       setUser(user);
-      
-      if (user.role === 'guardian') {
-        navigate('/guardian/dashboard');
-      } else {
-        navigate('/user/home');
-      }
+      navigate(user.role === 'guardian' ? '/guardian/dashboard' : '/user/home');
     } catch (err) {
       setError(err.response?.data?.error || err.message || 'Failed to sign up');
     } finally {
@@ -35,99 +31,176 @@ export default function Signup() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-navy-900">
-      <div className="absolute inset-0 z-0 bg-gradient-to-br from-navy-900 via-royal-600/20 to-navy-900" />
+    <div className="min-h-screen flex bg-canvas">
+      {/* Left panel — dark visual brand */}
+      <div className="hidden lg:flex lg:w-[480px] xl:w-[540px] bg-surface-dark relative overflow-hidden flex-col justify-between p-10">
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-0 right-0 w-80 h-80 bg-primary/8 rounded-full blur-[100px] translate-x-1/3 -translate-y-1/3" />
+          <div className="absolute bottom-0 left-0 w-60 h-60 bg-accent-amber/5 rounded-full blur-[80px] -translate-x-1/4 translate-y-1/4" />
+        </div>
 
-      <div className="relative z-10 w-full max-w-md mx-4">
-        <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-3xl shadow-2xl p-8">
-          
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-white mb-2">Join SafeSphere</h1>
-            <p className="text-navy-200">Create your account to get started</p>
+        <div className="relative z-10">
+          <Link to="/" className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
+              <ShieldCheck className="w-5 h-5 text-on-primary" />
+            </div>
+            <span className="font-display text-xl text-on-dark tracking-tight">SafeSphere</span>
+          </Link>
+        </div>
+
+        <div className="relative z-10">
+          <h1 className="font-display text-display-lg text-on-dark mb-4" style={{ letterSpacing: '-0.03em' }}>
+            Join the<br />safety network.
+          </h1>
+          <p className="text-on-dark-soft text-body-md leading-relaxed max-w-sm">
+            Create your account and start your first protected journey in under a minute.
+          </p>
+        </div>
+
+        <div className="relative z-10 space-y-4">
+          {[
+            { label: 'Choose your role: User or Guardian', icon: '◆' },
+            { label: 'Invite guardians via QR or link', icon: '◆' },
+            { label: 'Access AI-powered learning hub', icon: '◆' },
+          ].map((item, i) => (
+            <div key={i} className="flex items-center gap-3">
+              <span className="text-primary text-xs">{item.icon}</span>
+              <span className="text-on-dark-soft text-body-sm">{item.label}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="relative z-10">
+          <p className="text-on-dark-soft text-body-sm">Built for safety hackathons</p>
+        </div>
+      </div>
+
+      {/* Right panel — form */}
+      <div className="flex-1 flex items-center justify-center p-6 md:p-10">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          className="w-full max-w-[400px]"
+        >
+          <div className="lg:hidden flex items-center gap-3 mb-10">
+            <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
+              <ShieldCheck className="w-5 h-5 text-on-primary" />
+            </div>
+            <span className="font-display text-xl text-ink tracking-tight">SafeSphere</span>
+          </div>
+
+          <div className="mb-8">
+            <h2 className="font-display text-display-sm text-ink mb-2" style={{ letterSpacing: '-0.02em' }}>
+              Create your account
+            </h2>
+            <p className="text-muted text-body-sm">
+              Get started with SafeSphere in seconds
+            </p>
           </div>
 
           {error && (
-            <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-200 text-sm text-center">
+            <div className="mb-5 p-3 bg-error/5 border border-error/20 rounded-lg text-error text-body-sm text-center">
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSignup} className="space-y-5">
-            
-            {/* Account Type Toggle */}
-            <div className="flex bg-white/5 border border-white/20 rounded-xl p-1 mb-2">
-              <button
-                type="button"
-                onClick={() => setUserType('user')}
-                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${userType === 'user' ? 'bg-royal-500 text-white shadow-lg' : 'text-navy-200 hover:text-white'}`}
-              >
-                User
-              </button>
-              <button
-                type="button"
-                onClick={() => setUserType('guardian')}
-                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${userType === 'guardian' ? 'bg-royal-500 text-white shadow-lg' : 'text-navy-200 hover:text-white'}`}
-              >
-                Guardian
-              </button>
+          {/* Role toggle — shadcn tabs style */}
+          <div className="flex bg-surface-soft border border-hairline rounded-lg p-1 mb-6">
+            <button
+              type="button"
+              onClick={() => setUserType('user')}
+              className={`flex-1 py-2 rounded-md text-button font-medium transition-all ${
+                userType === 'user'
+                  ? 'bg-canvas text-ink shadow-hairline border border-hairline'
+                  : 'text-muted hover:text-body'
+              }`}
+            >
+              User
+            </button>
+            <button
+              type="button"
+              onClick={() => setUserType('guardian')}
+              className={`flex-1 py-2 rounded-md text-button font-medium transition-all ${
+                userType === 'guardian'
+                  ? 'bg-canvas text-ink shadow-hairline border border-hairline'
+                  : 'text-muted hover:text-body'
+              }`}
+            >
+              Guardian
+            </button>
+          </div>
+
+          <form onSubmit={handleSignup} className="space-y-4">
+            <div>
+              <label className="block text-caption text-muted mb-1.5 font-medium">Full Name</label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-soft" />
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  className="input-field"
+                  style={{ paddingLeft: '2.5rem' }}
+                  placeholder="Jane Doe"
+                />
+              </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-navy-200 mb-1">Full Name</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white placeholder-navy-400 focus:outline-none focus:ring-2 focus:ring-gold-500 transition-all"
-                placeholder="John Doe"
-              />
+              <label className="block text-caption text-muted mb-1.5 font-medium">Email Address</label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-soft" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="input-field"
+                  style={{ paddingLeft: '2.5rem' }}
+                  placeholder="you@example.com"
+                />
+              </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-navy-200 mb-1">Email Address</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white placeholder-navy-400 focus:outline-none focus:ring-2 focus:ring-gold-500 transition-all"
-                placeholder="you@example.com"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-navy-200 mb-1">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-                className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white placeholder-navy-400 focus:outline-none focus:ring-2 focus:ring-gold-500 transition-all"
-                placeholder="Minimum 6 characters"
-              />
+              <label className="block text-caption text-muted mb-1.5 font-medium">Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-soft" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  className="input-field"
+                  style={{ paddingLeft: '2.5rem' }}
+                  placeholder="Minimum 6 characters"
+                />
+              </div>
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 mt-2 bg-gradient-to-r from-gold-500 to-gold-400 hover:from-gold-400 hover:to-gold-300 text-navy-900 font-bold rounded-xl shadow-lg shadow-gold-500/30 transition-all transform hover:scale-[1.02] disabled:opacity-50"
+              className="btn-primary w-full mt-2"
             >
-              {loading ? 'Creating Account...' : 'Sign Up'}
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                <>Create Account <ArrowRight className="w-4 h-4" /></>
+              )}
             </button>
           </form>
 
           <div className="mt-6 text-center">
-            <p className="text-navy-200">
+            <p className="text-body-sm text-muted">
               Already have an account?{' '}
-              <Link to="/login" className="text-gold-400 hover:text-gold-300 font-semibold underline">
-                Login
+              <Link to="/login" className="text-primary font-medium hover:text-primary-active transition-colors">
+                Sign in
               </Link>
             </p>
           </div>
-
-        </div>
+        </motion.div>
       </div>
     </div>
   );

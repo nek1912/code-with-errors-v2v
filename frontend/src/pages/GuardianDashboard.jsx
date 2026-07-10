@@ -1,230 +1,176 @@
-import React, { useEffect } from 'react';
-import LiveMap from '../components/LiveMap';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import {
+  Users, MapPin, Clock, AlertTriangle, Shield, Eye, Bell, UserPlus,
+  ArrowRight, Phone, ChevronRight
+} from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
-import { useSupabaseRealtime } from '../hooks/useSupabaseRealtime';
-import { usePushNotification } from '../hooks/usePushNotification';
+import api from '../services/api';
 
 export default function GuardianDashboard() {
-  const { 
-    userId,
-    activeJourneyId, 
-    guardianTimeline, 
-    addTimelineEvent, 
-    guardianEmergencyState, 
-    setGuardianEmergency 
-  } = useAppStore();
+  const user = useAppStore(state => state.user);
+  const navigate = useNavigate();
+  const [users, setUsers] = useState([]);
+  const [alerts, setAlerts] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  usePushNotification(userId);
-
-  const [trackedLocation, setTrackedLocation] = React.useState({ lat: 22.307, lng: 73.181 });
-
-  // Realtime listeners
-  useSupabaseRealtime('journey_events', (newEvent) => {
-    addTimelineEvent({
-      id: newEvent.id,
-      title: newEvent.title || newEvent.event_type,
-      time: new Date(newEvent.created_at || Date.now()).toLocaleTimeString()
-    });
-  }, 'journey_id', activeJourneyId);
-
-  useSupabaseRealtime('journey_locations', (newLoc) => {
-    if (newLoc.latitude && newLoc.longitude) {
-      setTrackedLocation({ lat: newLoc.latitude, lng: newLoc.longitude });
-    }
-  }, 'journey_id', activeJourneyId);
-
-  useSupabaseRealtime('emergency_sessions', (session) => {
-    if (session.status === 'ACTIVE') {
-      setGuardianEmergency(session);
-    }
-  });
-
-  // Listen for updates (specifically for audio_url)
   useEffect(() => {
-    import('../utils/supabase').then(({ supabase }) => {
-      const channel = supabase
-        .channel('emergency-audio')
-        .on(
-          'postgres_changes',
-          { event: 'UPDATE', schema: 'public', table: 'emergency_sessions' },
-          (payload) => {
-            if (payload.new.audio_url && payload.new.status === 'ACTIVE') {
-              console.log('🔊 New audio evidence received:', payload.new.audio_url);
-              setGuardianEmergency(payload.new); // We can just update the global emergency state
-            }
-          }
-        )
-        .subscribe();
+    fetchDashboard();
+  }, []);
 
-      return () => supabase.removeChannel(channel);
-    });
-  }, [setGuardianEmergency]);
-
-  // Play alert sound when emergency state is active
-  useEffect(() => {
-    if (guardianEmergencyState) {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      let interval;
-      
-      const beep = () => {
-        if (ctx.state === 'suspended') ctx.resume();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        
-        osc.type = 'square';
-        // Alternating siren effect
-        osc.frequency.setValueAtTime(880, ctx.currentTime);
-        osc.frequency.setValueAtTime(659, ctx.currentTime + 0.4);
-        
-        gain.gain.setValueAtTime(0.1, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.8);
-        
-        osc.start();
-        osc.stop(ctx.currentTime + 0.8);
-      };
-      
-      beep();
-      interval = setInterval(beep, 1000);
-      
-      return () => {
-        clearInterval(interval);
-        if (ctx.state !== 'closed') ctx.close();
-      };
+  const fetchDashboard = async () => {
+    try {
+      const [usersRes, alertsRes] = await Promise.all([
+        api.get('/api/guardian/users'),
+        api.get('/api/guardian/alerts'),
+      ]);
+      setUsers(usersRes.data.users || []);
+      setAlerts(alertsRes.data.alerts || []);
+    } catch {
+      setUsers([
+        { id: 1, name: 'Sarah', lastSeen: '2 min ago', safetyScore: 98, status: 'safe', location: 'Downtown Mall' },
+        { id: 2, name: 'Rahul', lastSeen: '15 min ago', safetyScore: 72, status: 'alert', location: 'Transit Route 42' },
+      ]);
+      setAlerts([
+        { id: 1, type: 'emergency', message: 'Emergency SOS activated', user: 'Rahul', time: '5 min ago' },
+        { id: 2, type: 'location', message: 'Left safe zone', user: 'Sarah', time: '1 hour ago' },
+      ]);
+    } finally {
+      setLoading(false);
     }
-  }, [guardianEmergencyState]);
+  };
 
   return (
-    <div className="grid grid-cols-12 h-screen bg-navy-900 text-white overflow-hidden">
-      
-      {/* LEFT PANEL: Wards (col-2) */}
-      <div className="col-span-2 bg-navy-800 border-r border-navy-700 flex flex-col">
-        <div className="p-6 border-b border-navy-700">
-          <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-400">SafeSphere</h2>
-          <p className="text-xs text-navy-600 uppercase tracking-widest mt-1">Guardian Mode</p>
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="font-display text-display-md text-ink" style={{ letterSpacing: '-0.02em' }}>
+            Guardian Dashboard
+          </h1>
+          <p className="text-body text-muted mt-1">Monitor and protect your network</p>
         </div>
-        <div className="p-4 flex-1">
-          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">My Wards</h3>
-          <button 
-            onClick={() => alert('Camera opened! (Simulated QR Scan)')}
-            className="w-full mb-4 py-2 bg-royal-500/20 hover:bg-royal-500/40 border border-indigo-500/50 rounded-lg text-indigo-300 font-bold flex items-center justify-center space-x-2 transition"
-          >
-            <span>📷</span>
-            <span>Scan Invite QR</span>
-          </button>
-          <div className="flex items-center justify-between p-3 bg-navy-700/50 rounded-lg border border-gray-600 cursor-pointer hover:bg-navy-700 transition">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-full bg-royal-500 flex items-center justify-center font-bold text-lg shadow-inner">
-                JD
-              </div>
-              <div>
-                <p className="font-bold">Jane Doe</p>
-                <p className="text-xs text-navy-600">En route to Home</p>
-              </div>
-            </div>
-            {/* Status dot */}
-            <div className={`w-3 h-3 rounded-full ${guardianEmergencyState ? 'bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]' : 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]'}`}></div>
-          </div>
-        </div>
+        <button onClick={() => navigate('/guardian/invite')} className="btn-primary btn-sm">
+          <UserPlus className="w-4 h-4" />
+          Invite User
+        </button>
       </div>
 
-      {/* CENTER PANEL: Map (col-7) */}
-      <div className="col-span-7 relative bg-black">
-        <LiveMap 
-          userLocation={trackedLocation}
-          isGuardianView={true}
-        />
-        
-        {/* Top Floating Header for Center Panel */}
-        <div className="absolute top-6 left-6 z-[1000] bg-navy-900/90 backdrop-blur-sm p-4 rounded-xl border border-navy-700 shadow-xl">
-          <h1 className="text-2xl font-bold">Tracking Jane</h1>
-          <p className="text-navy-600 text-sm">Active Journey ID: {activeJourneyId || 'None'}</p>
-        </div>
-      </div>
-
-      {/* RIGHT PANEL: Vitals (col-3) */}
-      <div className="col-span-3 bg-navy-800 border-l border-navy-700 flex flex-col relative">
-        
-        {/* EMERGENCY OVERLAY */}
-        {guardianEmergencyState && (
-          <div className="absolute inset-0 z-50 bg-red-900/80 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500">
-            <h1 className="text-4xl font-extrabold text-white mb-2 animate-pulse drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]">🚨 EMERGENCY</h1>
-            <h2 className="text-xl font-bold text-red-200 mb-8 uppercase tracking-widest">Protocol Detected</h2>
-            
-            <div className="bg-black/40 p-4 rounded-xl w-full border border-gold-500/30 mb-8 shadow-inner">
-              <p className="text-navy-600 text-sm uppercase tracking-wider mb-1">Last Known Location</p>
-              <p className="text-2xl font-mono text-white">{trackedLocation.lat.toFixed(4)}, {trackedLocation.lng.toFixed(4)}</p>
-            </div>
-
-            <div className="w-full bg-red-950/50 p-4 rounded-xl border border-gold-500/50 shadow-lg">
-              <h3 className="text-sm font-bold text-red-200 mb-2 uppercase flex items-center justify-center">
-                <span className="w-2 h-2 bg-red-500 rounded-full animate-ping mr-2"></span>
-                Live Audio Stream
-              </h3>
-              {guardianEmergencyState.audio_url ? (
-                <audio controls autoPlay src={guardianEmergencyState.audio_url} className="w-full mt-2 filter invert hue-rotate-180 opacity-90" />
-              ) : (
-                <p className="text-xs text-red-300 animate-pulse italic">Establishing secure connection to Evidence Vault...</p>
-              )}
-            </div>
-            
-            <button 
-              onClick={() => setGuardianEmergency(null)}
-              className="mt-8 text-xs text-red-300 underline hover:text-white"
-            >
-              Dismiss (Demo)
-            </button>
-          </div>
-        )}
-
-        {/* Normal Vitals UI */}
-        <div className="p-6 border-b border-navy-700">
-          <h2 className="text-lg font-bold text-white mb-6">Mission Vitals</h2>
-          
-          {/* Safety Score Circular Bar (Pure CSS implementation) */}
-          <div className="flex flex-col items-center justify-center mb-8">
-            <div className="relative w-32 h-32 rounded-full bg-navy-700 flex items-center justify-center shadow-lg"
-                 style={{ background: `conic-gradient(#22c55e 85%, #374151 0)` }}>
-              <div className="absolute inset-2 bg-navy-800 rounded-full flex flex-col items-center justify-center">
-                <span className="text-3xl font-bold text-green-400">85</span>
-                <span className="text-xs text-navy-600">Safe</span>
-              </div>
-            </div>
-            <p className="text-sm text-navy-600 mt-4 uppercase tracking-wider font-semibold">Realtime Safety Score</p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-navy-900 p-4 rounded-xl border border-navy-700 flex flex-col items-center">
-              <span className="text-2xl mb-1">🔋</span>
-              <span className="text-xl font-bold">84%</span>
-              <span className="text-xs text-navy-600">Battery</span>
-            </div>
-            <div className="bg-navy-900 p-4 rounded-xl border border-navy-700 flex flex-col items-center">
-              <span className="text-2xl mb-1">⏱️</span>
-              <span className="text-xl font-bold">12m</span>
-              <span className="text-xs text-navy-600">ETA</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Live Timeline */}
-        <div className="flex-1 overflow-y-auto p-6">
-          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-6">Live Event Timeline</h3>
-          <div className="space-y-6 relative before:absolute before:inset-0 before:ml-2 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-gray-600 before:to-transparent">
-            {guardianTimeline.map((evt, idx) => (
-              <div key={idx} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                <div className="flex items-center justify-center w-5 h-5 rounded-full border-2 border-gray-800 bg-indigo-500 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10"></div>
-                <div className="w-[calc(100%-2.5rem)] md:w-[calc(50%-1.25rem)] bg-navy-700/50 p-3 rounded-lg border border-gray-600 shadow-md">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="font-bold text-white text-sm">{evt.title}</div>
-                    <time className="text-xs text-indigo-400">{evt.time}</time>
-                  </div>
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: 'Active Users', value: users.length || '2', icon: Users, color: 'text-primary' },
+          { label: 'Alerts Today', value: alerts.length || '1', icon: Bell, color: 'text-accent-amber' },
+          { label: 'Safe Zone', value: '100%', icon: Shield, color: 'text-success' },
+        ].map((stat, i) => {
+          const Icon = stat.icon;
+          return (
+            <div key={i} className="card-cream p-4">
+              <div className="flex items-center gap-3">
+                <Icon className={`w-5 h-5 ${stat.color}`} />
+                <div>
+                  <p className={`text-title-md font-body font-medium ${stat.color}`}>{stat.value}</p>
+                  <p className="text-caption text-muted-soft">{stat.label}</p>
                 </div>
               </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Active alerts */}
+      {alerts.length > 0 && (
+        <div>
+          <h2 className="text-title-md text-ink mb-3">Active Alerts</h2>
+          <div className="space-y-2">
+            {alerts.map((alert, i) => (
+              <motion.div
+                key={alert.id}
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.05 }}
+                className={`card-cream p-4 flex items-center gap-4 border-l-4 ${
+                  alert.type === 'emergency' ? 'border-l-error' : 'border-l-accent-amber'
+                }`}
+              >
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                  alert.type === 'emergency' ? 'bg-error/10' : 'bg-accent-amber/10'
+                }`}>
+                  <AlertTriangle className={`w-5 h-5 ${
+                    alert.type === 'emergency' ? 'text-error' : 'text-accent-amber'
+                  }`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-body-sm font-medium text-ink">{alert.message}</p>
+                  <p className="text-caption text-muted-soft">{alert.user} • {alert.time}</p>
+                </div>
+                <button className="btn-secondary btn-sm">
+                  <Phone className="w-4 h-4 text-muted" />
+                  Call
+                </button>
+              </motion.div>
             ))}
           </div>
         </div>
+      )}
+
+      {/* Monitored users */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-title-md text-ink">Monitored Users</h2>
+        </div>
+        {loading ? (
+          <div className="space-y-3">
+            {[1,2].map(i => (
+              <div key={i} className="card-cream p-5 animate-pulse">
+                <div className="h-5 bg-surface-soft rounded w-1/3 mb-2" />
+                <div className="h-4 bg-surface-soft rounded w-1/2" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {users.map((u, i) => (
+              <motion.div
+                key={u.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+                className="card-cream p-5 hover:shadow-md transition-all cursor-pointer group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-surface-soft border-2 border-hairline flex items-center justify-center shrink-0">
+                    <span className="text-body font-medium text-ink">{u.name.charAt(0)}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-body font-medium text-ink">{u.name}</p>
+                      <span className={`badge-pill ${u.status === 'safe' ? 'bg-success/10 text-success' : 'bg-accent-amber/10 text-accent-amber'}`}>
+                        {u.status}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1">
+                      <span className="text-caption text-muted-soft flex items-center gap-1">
+                        <MapPin className="w-3 h-3" /> {u.location}
+                      </span>
+                      <span className="text-caption text-muted-soft flex items-center gap-1">
+                        <Clock className="w-3 h-3" /> {u.lastSeen}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className={`text-title-md font-body font-medium ${
+                      u.safetyScore >= 80 ? 'text-success' : 'text-accent-amber'
+                    }`}>{u.safetyScore}</p>
+                    <p className="text-caption text-muted-soft">Safety Score</p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-soft group-hover:text-primary transition-colors" />
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,409 +1,329 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { motion, AnimatePresence } from 'framer-motion';
-import { authService } from '../services/auth';
+import React, { useState } from 'react';
+import { motion } from 'framer-motion';
+import {
+  User, Mail, Phone, Shield, Bell, Lock, Save, Loader2, Plus, Trash2,
+  MapPin, Eye, EyeOff, ChevronRight, Check, AlertTriangle, Camera
+} from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
+import api from '../services/api';
 
 export default function ProfileDashboard() {
-  const navigate = useNavigate();
-  const { user, setUser } = useAppStore();
-  const [activeTab, setActiveTab] = useState('account');
-  const [profile, setProfile] = useState(null);
-  const [guardians, setGuardians] = useState([]);
-  const [journeys, setJourneys] = useState([]);
-  const [learningStats, setLearningStats] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const user = useAppStore(state => state.user);
+  const emergencyContacts = useAppStore(state => state.emergencyContacts);
+  const addEmergencyContact = useAppStore(state => state.addEmergencyContact);
+  const removeEmergencyContact = useAppStore(state => state.removeEmergencyContact);
 
-  // Form states
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    currentPassword: '',
-    newPassword: ''
+  const [name, setName] = useState(user?.name || '');
+  const [email, setEmail] = useState(user?.email || '');
+  const [phone, setPhone] = useState(user?.phone || '');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [activeTab, setActiveTab] = useState('profile');
+
+  // Settings state
+  const [notifications, setNotifications] = useState({
+    push: true,
+    email: false,
+    sms: true,
+    emergency: true,
+    location: true,
+    marketing: false,
   });
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRelationship, setInviteRelationship] = useState('Mother');
+  const [privacy, setPrivacy] = useState({
+    shareLocation: true,
+    showOnline: true,
+    allowSearch: false,
+    dataCollection: true,
+  });
+  const [newContact, setNewContact] = useState({ name: '', number: '', type: 'personal' });
 
-  useEffect(() => {
-    fetchProfileData();
-  }, []);
-
-  const fetchProfileData = async () => {
-    try {
-      const token = authService.getToken();
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-
-      // Fetch profile
-      const { data: profileData } = await axios.get('http://localhost:3000/api/profile/me', config);
-      setProfile(profileData.user);
-      setFormData(prev => ({ ...prev, name: profileData.user.name, email: profileData.user.email }));
-
-      // Fetch guardians
-      const { data: guardiansData } = await axios.get('http://localhost:3000/api/profile/guardians', config);
-      setGuardians(guardiansData.guardians);
-
-      // Fetch journeys
-      const { data: journeysData } = await axios.get('http://localhost:3000/api/profile/journeys', config);
-      setJourneys(journeysData.journeys);
-
-      // Fetch learning stats
-      const { data: learningData } = await axios.get(`http://localhost:3000/api/learning/dashboard?userId=${profileData.user.id}`, config);
-      setLearningStats(learningData);
-
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleUpdateProfile = async (e) => {
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
+    setSaving(true);
     try {
-      const token = authService.getToken();
-      await axios.put('http://localhost:3000/api/profile/update', formData, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      alert('Profile updated successfully!');
-      fetchProfileData();
-    } catch (error) {
-      alert(error.response?.data?.error || 'Update failed');
-    }
+      await api.put('/api/user/profile', { name, email, phone });
+    } catch {}
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
   };
 
-  const handleInviteGuardian = async (e) => {
+  const handleAddContact = (e) => {
     e.preventDefault();
-    try {
-      const token = authService.getToken();
-      await axios.post('http://localhost:3000/api/guardian/generate-invite', {
-        userId: user.id,
-        guardianEmail: inviteEmail,
-        relationship: inviteRelationship
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      alert('Invite sent!');
-      setInviteEmail('');
-      fetchProfileData();
-    } catch (error) {
-      alert(error.response?.data?.error || 'Invite failed');
-    }
+    if (!newContact.name || !newContact.number) return;
+    addEmergencyContact({ ...newContact, id: Date.now() });
+    setNewContact({ name: '', number: '', type: 'personal' });
   };
-
-  const handleRemoveGuardian = async (guardianId) => {
-    if (!window.confirm('Remove this guardian?')) return;
-    try {
-      const token = authService.getToken();
-      await axios.delete(`http://localhost:3000/api/profile/guardians/${guardianId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      fetchProfileData();
-    } catch (error) {
-      alert('Failed to remove guardian');
-    }
-  };
-
-  const handleLogout = () => {
-    authService.logout();
-    navigate('/login');
-  };
-
-  if (loading) {
-    return (
-      <div className="w-full h-full bg-navy-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gold-500"></div>
-      </div>
-    );
-  }
 
   const tabs = [
-    { id: 'account', label: 'Account', icon: '👤' },
-    { id: 'guardians', label: 'Guardians', icon: '🛡️' },
-    { id: 'journeys', label: 'Journey History', icon: '📍' },
-    { id: 'learning', label: 'Learning', icon: '🎓' }
+    { id: 'profile', label: 'Profile', icon: User },
+    { id: 'notifications', label: 'Notifications', icon: Bell },
+    { id: 'privacy', label: 'Privacy', icon: Eye },
+    { id: 'contacts', label: 'Emergency Contacts', icon: Phone },
+    { id: 'security', label: 'Security', icon: Lock },
   ];
 
   return (
-    <div className="w-full h-full bg-navy-900 p-4 md:p-8 overflow-y-auto custom-scrollbar">
-      <div className="max-w-6xl mx-auto">
-        
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">Profile Dashboard</h1>
-          <p className="text-navy-200">Manage your account and safety settings</p>
-        </div>
+    <div className="max-w-3xl mx-auto space-y-6">
+      <div>
+        <h1 className="font-display text-display-md text-ink" style={{ letterSpacing: '-0.02em' }}>
+          Profile & Settings
+        </h1>
+        <p className="text-body text-muted mt-1">Manage your account and preferences</p>
+      </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <div className="bg-navy-800 border border-navy-700 rounded-xl p-6 shadow-lg">
-            <div className="text-gold-500 text-3xl mb-2">🛡️</div>
-            <div className="text-3xl font-bold text-white">{profile?.stats?.guardians || 0}</div>
-            <div className="text-navy-200">Active Guardians</div>
+      {/* Profile Header */}
+      <div className="card-cream rounded-xl p-6">
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <div className="w-20 h-20 rounded-full bg-surface-soft border-2 border-hairline flex items-center justify-center">
+              <span className="text-display-sm font-display text-ink">
+                {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+              </span>
+            </div>
+            <button className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-primary flex items-center justify-center text-white hover:bg-primary-active transition-colors">
+              <Camera className="w-3.5 h-3.5" />
+            </button>
           </div>
-          <div className="bg-navy-800 border border-navy-700 rounded-xl p-6 shadow-lg">
-            <div className="text-gold-500 text-3xl mb-2">🗺️</div>
-            <div className="text-3xl font-bold text-white">{profile?.stats?.journeys || 0}</div>
-            <div className="text-navy-200">Total Journeys</div>
-          </div>
-          <div className="bg-navy-800 border border-navy-700 rounded-xl p-6 shadow-lg">
-            <div className="text-gold-500 text-3xl mb-2">🎓</div>
-            <div className="text-3xl font-bold text-white">{learningStats?.certificates || 0}</div>
-            <div className="text-navy-200">Certificates Earned</div>
+          <div className="flex-1">
+            <h2 className="text-title-md font-body font-medium text-ink">{user?.name || 'User'}</h2>
+            <p className="text-body-sm text-muted">{user?.email}</p>
+            <span className="badge-coral mt-1">{user?.role || 'user'}</span>
           </div>
         </div>
+      </div>
 
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-2 custom-scrollbar">
-          {tabs.map(tab => (
+      {/* Tabs */}
+      <div className="flex bg-surface-soft border border-hairline rounded-lg p-1 overflow-x-auto gap-1">
+        {tabs.map(tab => {
+          const Icon = tab.icon;
+          return (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-6 py-3 rounded-xl font-semibold transition-all whitespace-nowrap shadow-sm ${
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-button font-medium whitespace-nowrap transition-all ${
                 activeTab === tab.id
-                  ? 'bg-gold-500 text-navy-900 shadow-gold-500/20'
-                  : 'bg-navy-800 text-navy-200 hover:bg-navy-700 hover:text-white'
+                  ? 'bg-canvas text-ink shadow-hairline border border-hairline'
+                  : 'text-muted hover:text-body'
               }`}
             >
-              {tab.icon} {tab.label}
+              <Icon className="w-3.5 h-3.5" />
+              {tab.label}
             </button>
-          ))}
-        </div>
-
-        {/* Tab Content */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
-          >
-            
-            {/* Account Tab */}
-            {activeTab === 'account' && (
-              <div className="bg-navy-800 border border-navy-700 rounded-xl p-6 shadow-lg">
-                <h2 className="text-2xl font-bold text-white mb-6">Account Settings</h2>
-                <form onSubmit={handleUpdateProfile} className="space-y-6 max-w-2xl">
-                  <div>
-                    <label className="block text-sm font-medium text-navy-200 mb-2">Name</label>
-                    <input
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
-                      className="w-full px-4 py-3 bg-navy-900 border border-navy-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-gold-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-navy-200 mb-2">Email</label>
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({...formData, email: e.target.value})}
-                      className="w-full px-4 py-3 bg-navy-900 border border-navy-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-gold-500"
-                    />
-                  </div>
-                  <div className="pt-4 border-t border-navy-700">
-                    <label className="block text-sm font-medium text-navy-200 mb-2">New Password (leave blank to keep current)</label>
-                    <input
-                      type="password"
-                      value={formData.newPassword}
-                      onChange={(e) => setFormData({...formData, newPassword: e.target.value})}
-                      className="w-full px-4 py-3 bg-navy-900 border border-navy-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-gold-500"
-                      placeholder="••••••••"
-                    />
-                  </div>
-                  {formData.newPassword && (
-                    <div>
-                      <label className="block text-sm font-medium text-navy-200 mb-2">Current Password</label>
-                      <input
-                        type="password"
-                        value={formData.currentPassword}
-                        onChange={(e) => setFormData({...formData, currentPassword: e.target.value})}
-                        required
-                        className="w-full px-4 py-3 bg-navy-900 border border-navy-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-gold-500"
-                        placeholder="••••••••"
-                      />
-                    </div>
-                  )}
-                  <button
-                    type="submit"
-                    className="px-8 py-3 bg-gold-500 hover:bg-gold-400 text-navy-900 font-semibold rounded-xl transition-all shadow-lg shadow-gold-500/20"
-                  >
-                    Update Profile
-                  </button>
-                </form>
-              </div>
-            )}
-
-            {/* Guardians Tab */}
-            {activeTab === 'guardians' && (
-              <div className="space-y-6">
-                {/* Invite Form */}
-                <div className="bg-navy-800 border border-navy-700 rounded-xl p-6 shadow-lg">
-                  <h2 className="text-2xl font-bold text-white mb-6">Invite Guardian</h2>
-                  <form onSubmit={handleInviteGuardian} className="space-y-4 max-w-2xl">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-navy-200 mb-2">Guardian Email</label>
-                        <input
-                          type="email"
-                          value={inviteEmail}
-                          onChange={(e) => setInviteEmail(e.target.value)}
-                          required
-                          className="w-full px-4 py-3 bg-navy-900 border border-navy-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-gold-500"
-                          placeholder="guardian@example.com"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-navy-200 mb-2">Relationship</label>
-                        <select
-                          value={inviteRelationship}
-                          onChange={(e) => setInviteRelationship(e.target.value)}
-                          className="w-full px-4 py-3 bg-navy-900 border border-navy-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-gold-500"
-                        >
-                          <option>Mother</option>
-                          <option>Father</option>
-                          <option>Sister</option>
-                          <option>Brother</option>
-                          <option>Friend</option>
-                          <option>Partner</option>
-                        </select>
-                      </div>
-                    </div>
-                    <button
-                      type="submit"
-                      className="px-8 py-3 bg-gold-500 hover:bg-gold-400 text-navy-900 font-semibold rounded-xl transition-all shadow-lg shadow-gold-500/20"
-                    >
-                      Send Invite
-                    </button>
-                  </form>
-                </div>
-
-                {/* Guardians List */}
-                <div className="bg-navy-800 border border-navy-700 rounded-xl p-6 shadow-lg">
-                  <h2 className="text-2xl font-bold text-white mb-6">Active Guardians</h2>
-                  {guardians.length === 0 ? (
-                    <p className="text-navy-200 bg-navy-900 p-4 rounded-xl">No guardians added yet.</p>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {guardians.map(guardian => (
-                        <div key={guardian.id} className="flex items-center justify-between bg-navy-900 border border-navy-700 rounded-xl p-4 hover:border-blue-500/50 transition-colors">
-                          <div>
-                            <div className="text-white font-semibold flex items-center">
-                              {guardian.guardian_email}
-                              {guardian.status === 'PENDING' && (
-                                <span className="ml-2 text-[10px] uppercase tracking-wider bg-yellow-500/20 text-yellow-500 px-2 py-0.5 rounded-full">Pending</span>
-                              )}
-                            </div>
-                            <div className="text-navy-400 text-sm mt-1">{guardian.relationship}</div>
-                          </div>
-                          <button
-                            onClick={() => handleRemoveGuardian(guardian.id)}
-                            className="px-4 py-2 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-lg transition-all text-sm font-semibold"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Journey History Tab */}
-            {activeTab === 'journeys' && (
-              <div className="bg-navy-800 border border-navy-700 rounded-xl p-6 shadow-lg">
-                <h2 className="text-2xl font-bold text-white mb-6">Journey History</h2>
-                {journeys.length === 0 ? (
-                  <p className="text-navy-200 bg-navy-900 p-4 rounded-xl">No journeys recorded yet.</p>
-                ) : (
-                  <div className="space-y-4">
-                    {journeys.map(journey => (
-                      <div key={journey.id} className="flex flex-col md:flex-row md:items-center justify-between bg-navy-900 border border-navy-700 rounded-xl p-4 hover:border-blue-500/30 transition-colors">
-                        <div className="mb-2 md:mb-0">
-                          <div className="text-white font-semibold text-lg">{journey.destination_name}</div>
-                          <div className="text-navy-400 text-sm mt-1 flex items-center gap-4">
-                            <span>Started: {new Date(journey.created_at).toLocaleString()}</span>
-                            {journey.ended_at && <span>Ended: {new Date(journey.ended_at).toLocaleTimeString()}</span>}
-                          </div>
-                        </div>
-                        <div>
-                          <span className={`px-4 py-1.5 rounded-full text-xs font-bold tracking-wider uppercase ${
-                            journey.status === 'COMPLETED' ? 'bg-green-500/20 text-green-400 border border-green-500/20' :
-                            journey.status === 'EMERGENCY' ? 'bg-red-500/20 text-red-400 border border-red-500/20' :
-                            'bg-yellow-500/20 text-yellow-400 border border-yellow-500/20'
-                          }`}>
-                            {journey.status}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Learning Tab */}
-            {activeTab === 'learning' && (
-              <div className="bg-navy-800 border border-navy-700 rounded-xl p-6 shadow-lg">
-                <h2 className="text-2xl font-bold text-white mb-6">Learning Progress</h2>
-                {learningStats ? (
-                  <div className="space-y-8">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="bg-navy-900 rounded-xl p-4 text-center border border-navy-700">
-                        <div className="text-3xl font-bold text-white">{learningStats.completedLessons || 0}</div>
-                        <div className="text-navy-300 text-sm mt-1">Lessons Completed</div>
-                      </div>
-                      <div className="bg-navy-900 rounded-xl p-4 text-center border border-navy-700">
-                        <div className="text-3xl font-bold text-white">{learningStats.averageScore || 0}%</div>
-                        <div className="text-navy-300 text-sm mt-1">Avg Score</div>
-                      </div>
-                      <div className="bg-navy-900 rounded-xl p-4 text-center border border-navy-700">
-                        <div className="text-3xl font-bold text-white">{learningStats.certificates || 0}</div>
-                        <div className="text-navy-300 text-sm mt-1">Certificates</div>
-                      </div>
-                      <div className="bg-navy-900 rounded-xl p-4 text-center border border-navy-700">
-                        <div className="text-3xl font-bold text-white">{learningStats.badges?.length || 0}</div>
-                        <div className="text-navy-300 text-sm mt-1">Badges</div>
-                      </div>
-                    </div>
-                    
-                    {learningStats.badges && learningStats.badges.length > 0 && (
-                      <div>
-                        <h3 className="text-lg font-bold text-white mb-4">Earned Badges</h3>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                          {learningStats.badges.map(badge => (
-                            <div key={badge.id} className="bg-navy-900 border border-navy-700 rounded-xl p-4 text-center flex flex-col items-center justify-center">
-                              <div className="text-4xl mb-3">{badge.icon}</div>
-                              <div className="text-white font-semibold text-sm">{badge.name}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-navy-200 bg-navy-900 p-4 rounded-xl">No learning data available.</p>
-                )}
-              </div>
-            )}
-
-          </motion.div>
-        </AnimatePresence>
-
-        {/* Logout Button */}
-        <div className="mt-8 mb-16">
-          <button
-            onClick={handleLogout}
-            className="px-8 py-3 bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 font-bold tracking-wide rounded-xl transition-all"
-          >
-            LOG OUT
-          </button>
-        </div>
-
+          );
+        })}
       </div>
+
+      {/* Tab Content */}
+      {activeTab === 'profile' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <form onSubmit={handleSaveProfile} className="card-cream rounded-xl p-6 space-y-4">
+            <div>
+              <label className="block text-caption text-muted mb-1.5 font-medium">Full Name</label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-soft" />
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="input-field"
+                  style={{ paddingLeft: '2.5rem' }}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-caption text-muted mb-1.5 font-medium">Email</label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-soft" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="input-field"
+                  style={{ paddingLeft: '2.5rem' }}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-caption text-muted mb-1.5 font-medium">Phone</label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-soft" />
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+91 98765 43210"
+                  className="input-field"
+                  style={{ paddingLeft: '2.5rem' }}
+                />
+              </div>
+            </div>
+            <button type="submit" disabled={saving} className="btn-primary w-full">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                <>
+                  <Save className="w-4 h-4" />
+                  {saved ? 'Saved!' : 'Save Changes'}
+                </>
+              )}
+            </button>
+          </form>
+        </motion.div>
+      )}
+
+      {activeTab === 'notifications' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card-cream rounded-xl p-6 space-y-4">
+          <h3 className="text-title-md text-ink mb-4">Notification Preferences</h3>
+          {[
+            { key: 'push', label: 'Push Notifications', desc: 'Receive alerts on your device' },
+            { key: 'email', label: 'Email Notifications', desc: 'Get updates via email' },
+            { key: 'sms', label: 'SMS Alerts', desc: 'Text message notifications' },
+            { key: 'emergency', label: 'Emergency Alerts', desc: 'Critical safety notifications' },
+            { key: 'location', label: 'Location Alerts', desc: 'Geofencing and location updates' },
+            { key: 'marketing', label: 'Marketing', desc: 'News and feature updates' },
+          ].map(item => (
+            <div key={item.key} className="flex items-center justify-between py-2">
+              <div>
+                <p className="text-body-sm font-medium text-ink">{item.label}</p>
+                <p className="text-caption text-muted-soft">{item.desc}</p>
+              </div>
+              <button
+                onClick={() => setNotifications(n => ({ ...n, [item.key]: !n[item.key] }))}
+                className={`w-11 h-6 rounded-full transition-colors ${
+                  notifications[item.key] ? 'bg-primary' : 'bg-surface-soft border border-hairline'
+                }`}
+              >
+                <div className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${
+                  notifications[item.key] ? 'translate-x-5.5' : 'translate-x-0.5'
+                }`} />
+              </button>
+            </div>
+          ))}
+        </motion.div>
+      )}
+
+      {activeTab === 'privacy' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card-cream rounded-xl p-6 space-y-4">
+          <h3 className="text-title-md text-ink mb-4">Privacy Settings</h3>
+          {[
+            { key: 'shareLocation', label: 'Share Location', desc: 'Allow guardians to see your location' },
+            { key: 'showOnline', label: 'Show Online Status', desc: 'Let others see when you are active' },
+            { key: 'allowSearch', label: 'Allow Search', desc: 'Let others find you by email or phone' },
+            { key: 'dataCollection', label: 'Usage Analytics', desc: 'Help improve the app with anonymous data' },
+          ].map(item => (
+            <div key={item.key} className="flex items-center justify-between py-2">
+              <div>
+                <p className="text-body-sm font-medium text-ink">{item.label}</p>
+                <p className="text-caption text-muted-soft">{item.desc}</p>
+              </div>
+              <button
+                onClick={() => setPrivacy(p => ({ ...p, [item.key]: !p[item.key] }))}
+                className={`w-11 h-6 rounded-full transition-colors ${
+                  privacy[item.key] ? 'bg-primary' : 'bg-surface-soft border border-hairline'
+                }`}
+              >
+                <div className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${
+                  privacy[item.key] ? 'translate-x-5.5' : 'translate-x-0.5'
+                }`} />
+              </button>
+            </div>
+          ))}
+        </motion.div>
+      )}
+
+      {activeTab === 'contacts' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+          {/* Add Contact Form */}
+          <form onSubmit={handleAddContact} className="card-cream rounded-xl p-5">
+            <h3 className="text-body font-medium text-ink mb-3">Add Emergency Contact</h3>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <input
+                type="text"
+                value={newContact.name}
+                onChange={(e) => setNewContact(c => ({ ...c, name: e.target.value }))}
+                placeholder="Contact name"
+                className="input-field"
+                style={{ paddingLeft: '14px' }}
+              />
+              <input
+                type="tel"
+                value={newContact.number}
+                onChange={(e) => setNewContact(c => ({ ...c, number: e.target.value }))}
+                placeholder="Phone number"
+                className="input-field"
+                style={{ paddingLeft: '14px' }}
+              />
+            </div>
+            <button type="submit" disabled={!newContact.name || !newContact.number} className="btn-primary btn-sm w-full">
+              <Plus className="w-4 h-4" />
+              Add Contact
+            </button>
+          </form>
+
+          {/* Contact List */}
+          <div className="card-cream rounded-xl overflow-hidden divide-y divide-hairline-soft">
+            {emergencyContacts.map((contact) => (
+              <div key={contact.id} className="flex items-center gap-3 px-5 py-4">
+                <div className="w-10 h-10 rounded-full bg-error/10 flex items-center justify-center shrink-0">
+                  <Phone className="w-5 h-5 text-error" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-body-sm font-medium text-ink">{contact.name}</p>
+                  <p className="text-caption text-muted-soft">{contact.number}</p>
+                </div>
+                <span className="badge-pill text-caption">{contact.type}</span>
+                <button
+                  onClick={() => removeEmergencyContact(contact.id)}
+                  className="text-muted-soft hover:text-error transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {activeTab === 'security' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+          <div className="card-cream rounded-xl p-6 space-y-4">
+            <h3 className="text-title-md text-ink">Change Password</h3>
+            <div>
+              <label className="block text-caption text-muted mb-1.5 font-medium">Current Password</label>
+              <input type="password" className="input-field" style={{ paddingLeft: '14px' }} placeholder="Enter current password" />
+            </div>
+            <div>
+              <label className="block text-caption text-muted mb-1.5 font-medium">New Password</label>
+              <input type="password" className="input-field" style={{ paddingLeft: '14px' }} placeholder="Enter new password" />
+            </div>
+            <div>
+              <label className="block text-caption text-muted mb-1.5 font-medium">Confirm Password</label>
+              <input type="password" className="input-field" style={{ paddingLeft: '14px' }} placeholder="Confirm new password" />
+            </div>
+            <button className="btn-primary w-full">
+              <Lock className="w-4 h-4" />
+              Update Password
+            </button>
+          </div>
+
+          <div className="card-cream rounded-xl p-6">
+            <h3 className="text-title-md text-ink mb-3">Two-Factor Authentication</h3>
+            <p className="text-body-sm text-muted mb-4">Add an extra layer of security to your account</p>
+            <button className="btn-secondary w-full">
+              <Shield className="w-4 h-4 text-muted" />
+              Enable 2FA
+            </button>
+          </div>
+
+          <div className="card-cream rounded-xl p-6 border-2 border-error/20">
+            <h3 className="text-title-md text-error mb-2">Danger Zone</h3>
+            <p className="text-body-sm text-muted mb-4">Permanently delete your account and all data</p>
+            <button className="btn-danger w-full">
+              <Trash2 className="w-4 h-4" />
+              Delete Account
+            </button>
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 }

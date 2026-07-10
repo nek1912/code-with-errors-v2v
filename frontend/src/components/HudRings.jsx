@@ -1,75 +1,60 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { useEmergencyStore } from '../store/useEmergencyStore';
 
-export default function HudRings({ color = '#F59E0B', speed = 20, direction = 1, scale = 1, isEmergency = false }) {
-  // Complex concentric rings to simulate a futuristic AI HUD
+export default function HudRings() {
+  const isEmergencyMode = useEmergencyStore(state => state.isEmergencyMode);
+
+  if (!isEmergencyMode) return null;
+
   return (
-    <motion.div
-      className="absolute inset-0 flex items-center justify-center pointer-events-none mix-blend-screen"
-      style={{ scale }}
-      animate={{ rotate: direction * 360 }}
-      transition={{ 
-        repeat: Infinity, 
-        duration: speed, 
-        ease: 'linear' 
-      }}
-    >
-      <svg width="400" height="400" viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
-        
-        {/* Outer dashed ring */}
-        <motion.circle 
-          cx="200" cy="200" r="180" 
-          stroke={color} 
-          strokeWidth="2" 
-          strokeDasharray="4 12" 
-          strokeOpacity="0.6"
-          animate={{ stroke: isEmergency ? '#DC2626' : color }}
-          transition={{ duration: 0.5 }}
-        />
-        
-        {/* Outer tracking segments */}
-        <motion.circle 
-          cx="200" cy="200" r="170" 
-          stroke={color} 
-          strokeWidth="4" 
-          strokeDasharray="60 140" 
-          strokeOpacity="0.8"
-          animate={{ stroke: isEmergency ? '#DC2626' : color }}
-          transition={{ duration: 0.5 }}
-        />
-        
-        {/* Middle fine ring */}
-        <motion.circle 
-          cx="200" cy="200" r="150" 
-          stroke={color} 
-          strokeWidth="1" 
-          strokeOpacity="0.4"
-          animate={{ stroke: isEmergency ? '#EF4444' : color }}
-          transition={{ duration: 0.5 }}
-        />
-        
-        {/* Inner complex tracker */}
-        <motion.circle 
-          cx="200" cy="200" r="130" 
-          stroke={color} 
-          strokeWidth="8" 
-          strokeDasharray="10 30" 
-          strokeOpacity="0.5"
-          animate={{ stroke: isEmergency ? '#B91C1C' : color }}
-          transition={{ duration: 0.5 }}
-        />
+    <div className="fixed inset-0 pointer-events-none z-10">
+      {/* Outer ring */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: [0.1, 0.3, 0.1], scale: [0.95, 1.05, 0.95] }}
+        transition={{ duration: 3, repeat: Infinity }}
+        className="absolute inset-8 rounded-2xl border-2 border-error/20"
+      />
 
-        {/* Small tech detailing dots */}
-        <motion.circle 
-          cx="200" cy="200" r="110" 
-          stroke={color} 
-          strokeWidth="3" 
-          strokeDasharray="2 18" 
-          strokeOpacity="0.7"
-          animate={{ stroke: isEmergency ? '#DC2626' : color }}
-          transition={{ duration: 0.5 }}
+      {/* Middle ring */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: [0.15, 0.4, 0.15], scale: [0.98, 1.02, 0.98] }}
+        transition={{ duration: 2.5, repeat: Infinity, delay: 0.3 }}
+        className="absolute inset-16 rounded-xl border border-error/15"
+      />
+
+      {/* Inner ring */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: [0.1, 0.25, 0.1] }}
+        transition={{ duration: 2, repeat: Infinity, delay: 0.6 }}
+        className="absolute inset-24 rounded-lg border border-error/10"
+      />
+
+      {/* Corner accents */}
+      {[
+        'top-8 left-8',
+        'top-8 right-8',
+        'bottom-8 left-8',
+        'bottom-8 right-8',
+      ].map((pos, i) => (
+        <motion.div
+          key={i}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0.2, 0.5, 0.2] }}
+          transition={{ duration: 2, repeat: Infinity, delay: i * 0.2 }}
+          className={`absolute ${pos} w-6 h-6 border-t-2 border-l-2 border-error/30 rounded-tl`}
+          style={{
+            borderTop: i < 2 ? '2px solid' : 'none',
+            borderBottom: i >= 2 ? '2px solid' : 'none',
+            borderLeft: i % 2 === 0 ? '2px solid' : 'none',
+            borderRight: i % 2 !== 0 ? '2px solid' : 'none',
+            borderColor: 'rgba(220, 38, 38, 0.3)',
+          }}
         />
-      </svg>
-    </motion.div>
+      ))}
+    </div>
   );
 }

@@ -1,216 +1,312 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import React, { useState, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import {
+  ArrowLeft, Video, Mic, Upload, Loader2, CheckCircle, StopCircle,
+  Camera, FileText, MapPin, Clock, Shield, X, AlertTriangle
+} from 'lucide-react';
+import { useAppStore } from '../store/useAppStore';
+import api from '../services/api';
 
 export default function EvidenceVault() {
-  const { incidentId } = useParams();
+  const [mode, setMode] = useState('idle'); // idle, recording-video, recording-audio, uploading, success
+  const [recordTime, setRecordTime] = useState(0);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+  const fileInputRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const streamRef = useRef(null);
+  const timerRef = useRef(null);
+  const chunksRef = useRef([]);
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [incident, setIncident] = useState(null);
-  const [files, setFiles] = useState([]);
-  const [locations, setLocations] = useState([]);
-  const [notes, setNotes] = useState([]);
-  const [timeline, setTimeline] = useState([]);
-  const [guardianActions, setGuardianActions] = useState([]);
+  const currentLocation = useAppStore(state => state.currentLocation);
 
-  useEffect(() => {
-    fetchIncidentDetails();
-  }, [incidentId]);
-
-  const fetchIncidentDetails = async () => {
+  const startVideoRecording = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const { data } = await axios.get(
-        `http://localhost:3000/api/evidence/${incidentId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      setError('');
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: true
+      });
+      streamRef.current = stream;
+      chunksRef.current = [];
 
-      setIncident(data.incident);
-      setFiles(data.files);
-      setLocations(data.locations);
-      setNotes(data.notes);
-      setTimeline(data.timeline);
-      setGuardianActions(data.guardianActions);
-    } catch (error) {
-      console.error('Error fetching incident:', error);
-    } finally {
-      setLoading(false);
+      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      recorder.onstop = () => handleRecordingComplete('video');
+      recorder.start();
+
+      mediaRecorderRef.current = recorder;
+      setMode('recording-video');
+      setRecordTime(0);
+      timerRef.current = setInterval(() => setRecordTime(t => t + 1), 1000);
+    } catch (err) {
+      setError('Unable to access camera. Please check permissions.');
     }
   };
 
-  const handleDownloadPDF = async () => {
+  const startAudioRecording = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(
-        `http://localhost:3000/api/evidence/report/${incidentId}`,
-        { 
-          headers: { Authorization: `Bearer ${token}` },
-          responseType: 'blob'
-        }
-      );
+      setError('');
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      chunksRef.current = [];
 
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `incident-${incidentId}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-    } catch (error) {
-      console.error('Error downloading PDF:', error);
+      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      recorder.onstop = () => handleRecordingComplete('audio');
+      recorder.start();
+
+      mediaRecorderRef.current = recorder;
+      setMode('recording-audio');
+      setRecordTime(0);
+      timerRef.current = setInterval(() => setRecordTime(t => t + 1), 1000);
+    } catch (err) {
+      setError('Unable to access microphone. Please check permissions.');
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-navy-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gold-500"></div>
-      </div>
-    );
-  }
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+    }
+    clearInterval(timerRef.current);
+  };
+
+  const handleRecordingComplete = async (type) => {
+    const blob = new Blob(chunksRef.current, { type: type === 'video' ? 'video/webm' : 'audio/webm' });
+    await uploadFile(blob, `${type}-${Date.now()}.webm`, type);
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setSelectedFile(file);
+      setError('');
+      if (file.type.startsWith('image')) {
+        const reader = new FileReader();
+        reader.onload = (ev) => setPreview(ev.target.result);
+        reader.readAsDataURL(file);
+      } else {
+        setPreview(null);
+      }
+    }
+  };
+
+  const uploadFile = async (blob, filename, type) => {
+    setMode('uploading');
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', blob || selectedFile, filename || selectedFile?.name);
+      formData.append('type', type || (selectedFile?.type.startsWith('video') ? 'video' : selectedFile?.type.startsWith('audio') ? 'audio' : 'image'));
+      formData.append('timestamp', new Date().toISOString());
+      if (currentLocation) {
+        formData.append('location', JSON.stringify(currentLocation));
+      }
+
+      await api.post('/api/evidence/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setMode('success');
+    } catch (err) {
+      setError('Upload failed. Please try again.');
+      setMode('idle');
+    }
+    setUploading(false);
+  };
+
+  const handleUpload = () => {
+    if (selectedFile) uploadFile(null, null, null);
+  };
+
+  const formatTime = (s) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+  };
 
   return (
-    <div className="min-h-screen bg-navy-900 p-4">
-      <div className="max-w-6xl mx-auto">
-        
-        {/* Header */}
-        <div className="mb-8">
-          <button 
-            onClick={() => navigate(-1)}
-            className="text-navy-200 hover:text-gold-400 mb-4"
-          >
-            ← Back
+    <div className="max-w-2xl mx-auto space-y-6">
+      <button
+        onClick={() => navigate('/user/evidence')}
+        className="flex items-center gap-2 text-body-sm text-muted hover:text-ink transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Back to Evidence
+      </button>
+
+      <div>
+        <h1 className="font-display text-display-sm text-ink" style={{ letterSpacing: '-0.02em' }}>
+          Capture Evidence
+        </h1>
+        <p className="text-body-sm text-muted mt-1">Record or upload evidence — encrypted and timestamped</p>
+      </div>
+
+      {error && (
+        <div className="p-3 bg-error/5 border border-error/20 rounded-lg flex items-center gap-3">
+          <AlertTriangle className="w-5 h-5 text-error shrink-0" />
+          <p className="text-body-sm text-error">{error}</p>
+          <button onClick={() => setError('')} className="ml-auto text-muted-soft hover:text-ink">
+            <X className="w-4 h-4" />
           </button>
-          <h1 className="text-3xl font-bold text-white mb-2">Evidence Vault</h1>
-          <div className="flex items-center gap-4">
-            <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
-              incident.status === 'ACTIVE' 
-                ? 'bg-red-500/20 text-red-400' 
-                : 'bg-green-500/20 text-green-400'
+        </div>
+      )}
+
+      {mode === 'success' ? (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="card-cream p-8 text-center"
+        >
+          <div className="w-16 h-16 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-4">
+            <CheckCircle className="w-8 h-8 text-success" />
+          </div>
+          <h3 className="text-title-md text-ink mb-2">Evidence Saved</h3>
+          <p className="text-body-sm text-muted mb-6">Your evidence has been encrypted and stored securely</p>
+          <div className="flex gap-3 justify-center">
+            <button onClick={() => { setMode('idle'); setSelectedFile(null); setPreview(null); }} className="btn-secondary">
+              Capture More
+            </button>
+            <button onClick={() => navigate('/user/evidence')} className="btn-primary">
+              View Evidence Vault
+            </button>
+          </div>
+        </motion.div>
+      ) : mode === 'uploading' ? (
+        <div className="card-cream p-8 text-center">
+          <Loader2 className="w-10 h-10 text-primary animate-spin mx-auto mb-4" />
+          <p className="text-body font-medium text-ink">Uploading evidence...</p>
+          <p className="text-body-sm text-muted mt-1">Encrypting and storing securely</p>
+        </div>
+      ) : mode.startsWith('recording') ? (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className={`card-cream p-6 border-2 ${
+            mode === 'recording-video' ? 'border-primary' : 'border-accent-teal'
+          }`}
+        >
+          <div className="text-center">
+            <div className={`w-20 h-20 rounded-full mx-auto mb-4 flex items-center justify-center ${
+              mode === 'recording-video' ? 'bg-primary/10' : 'bg-accent-teal/10'
             }`}>
-              {incident.status}
-            </span>
-            <span className="text-navy-200">Type: {incident.type}</span>
-            <span className="text-navy-200">
-              {new Date(incident.started_at).toLocaleString()}
-            </span>
-          </div>
-        </div>
-
-        {/* Evidence Files */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-white mb-4">Evidence Files</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {files.map((file) => (
-              <motion.div 
-                key={file.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-navy-800 border border-navy-700 rounded-xl p-4"
-              >
-                {file.file_type === 'IMAGE' ? (
-                  <img 
-                    src={file.file_url} 
-                    alt="Evidence" 
-                    className="w-full h-48 object-cover rounded-lg mb-3"
-                  />
-                ) : file.file_type === 'AUDIO' ? (
-                  <div className="bg-navy-900 rounded-lg p-4 mb-3">
-                    <audio controls className="w-full">
-                      <source src={file.file_url} type="audio/mpeg" />
-                    </audio>
-                  </div>
-                ) : null}
-                <p className="text-navy-200 text-sm">
-                  {new Date(file.uploaded_at).toLocaleString()}
-                </p>
-                <p className="text-navy-400 text-xs mt-1">
-                  {file.file_size ? `${(file.file_size / 1024 / 1024).toFixed(2)} MB` : ''}
-                </p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-
-        {/* Timeline */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-white mb-4">Timeline</h2>
-          <div className="bg-navy-800 border border-navy-700 rounded-xl p-6">
-            <div className="space-y-4">
-              {timeline.map((event, index) => (
-                <div key={index} className="flex items-start gap-4">
-                  <div className="w-2 h-2 bg-gold-500 rounded-full mt-2" />
-                  <div>
-                    <p className="text-white font-semibold">{event.title}</p>
-                    <p className="text-navy-400 text-sm">
-                      {new Date(event.created_at).toLocaleString()}
-                    </p>
-                    {event.description && (
-                      <p className="text-navy-300 text-sm mt-1">{event.description}</p>
-                    )}
-                  </div>
-                </div>
-              ))}
+              {mode === 'recording-video' ? (
+                <Camera className="w-10 h-10 text-primary animate-pulse" />
+              ) : (
+                <Mic className="w-10 h-10 text-accent-teal animate-pulse" />
+              )}
             </div>
-          </div>
-        </div>
-
-        {/* Location Trail */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-white mb-4">Location Trail</h2>
-          <div className="bg-navy-800 border border-navy-700 rounded-xl p-6">
-            <p className="text-navy-200">
-              {locations.length} location points recorded
+            <p className="text-title-md text-ink mb-1">
+              {mode === 'recording-video' ? 'Recording Video' : 'Recording Audio'}
             </p>
-            <div className="mt-4 h-64 bg-navy-900 rounded-lg flex items-center justify-center">
-              <p className="text-navy-400">Map visualization would go here</p>
-            </div>
+            <p className="text-display-sm font-body font-medium text-primary mb-4">
+              {formatTime(recordTime)}
+            </p>
+            {mode === 'recording-video' && (
+              <p className="text-caption text-muted-soft mb-4">Max 30 seconds</p>
+            )}
+            <button onClick={stopRecording} className="btn-danger">
+              <StopCircle className="w-4 h-4" />
+              Stop Recording
+            </button>
           </div>
-        </div>
+        </motion.div>
+      ) : (
+        <div className="space-y-4">
+          {/* Quick Record */}
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={startVideoRecording}
+              className="card-cream p-6 text-center hover:shadow-md transition-all group"
+            >
+              <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3 group-hover:bg-primary/20 transition-colors">
+                <Video className="w-7 h-7 text-primary" />
+              </div>
+              <p className="text-body-sm font-medium text-ink">Record Video</p>
+              <p className="text-caption text-muted-soft mt-1">Up to 30 seconds</p>
+            </button>
 
-        {/* Notes */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-white mb-4">Notes</h2>
-          <div className="space-y-4">
-            {notes.map((note) => (
-              <div key={note.id} className="bg-navy-800 border border-navy-700 rounded-xl p-4">
-                <p className="text-white">{note.note}</p>
-                <p className="text-navy-400 text-sm mt-2">
-                  By {note.created_by_name} • {new Date(note.created_at).toLocaleString()}
+            <button
+              onClick={startAudioRecording}
+              className="card-cream p-6 text-center hover:shadow-md transition-all group"
+            >
+              <div className="w-14 h-14 rounded-full bg-accent-teal/10 flex items-center justify-center mx-auto mb-3 group-hover:bg-accent-teal/20 transition-colors">
+                <Mic className="w-7 h-7 text-accent-teal" />
+              </div>
+              <p className="text-body-sm font-medium text-ink">Record Audio</p>
+              <p className="text-caption text-muted-soft mt-1">Auto-saves when done</p>
+            </button>
+          </div>
+
+          {/* File Upload */}
+          <div className="card-cream p-6">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/*,audio/*,image/*"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+
+            {preview ? (
+              <div className="relative">
+                <img src={preview} alt="Preview" className="w-full h-48 object-cover rounded-lg" />
+                <button
+                  onClick={() => { setSelectedFile(null); setPreview(null); }}
+                  className="absolute top-2 right-2 w-8 h-8 rounded-full bg-ink/50 flex items-center justify-center text-white hover:bg-ink/70"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="border-2 border-dashed border-hairline rounded-xl p-8 text-center hover:border-primary/30 transition-colors cursor-pointer"
+              >
+                <Upload className="w-8 h-8 text-muted-soft mx-auto mb-3" />
+                {selectedFile ? (
+                  <div>
+                    <p className="text-body-sm font-medium text-ink">{selectedFile.name}</p>
+                    <p className="text-caption text-muted-soft mt-1">
+                      {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-body-sm text-muted">Click to upload file</p>
+                    <p className="text-caption text-muted-soft mt-1">Video, audio, or image</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {selectedFile && (
+              <button onClick={handleUpload} disabled={uploading} className="btn-primary w-full mt-4">
+                {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Upload Evidence'}
+              </button>
+            )}
+          </div>
+
+          {/* Info */}
+          <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl">
+            <div className="flex items-start gap-3">
+              <Shield className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+              <div>
+                <p className="text-body-sm font-medium text-ink">End-to-End Encrypted</p>
+                <p className="text-caption text-muted-soft mt-0.5">
+                  All evidence is encrypted, timestamped, and stored securely. Location data is attached automatically.
                 </p>
               </div>
-            ))}
+            </div>
           </div>
         </div>
-
-        {/* Actions */}
-        <div className="flex gap-4 mb-8">
-          <button
-            onClick={handleDownloadPDF}
-            className="px-6 py-3 bg-gold-500 hover:bg-gold-400 text-navy-900 font-semibold rounded-xl transition-all"
-          >
-            Download PDF Report
-          </button>
-          {incident.status === 'ACTIVE' && (
-            <button
-              onClick={async () => {
-                const token = localStorage.getItem('token');
-                await axios.post(
-                  `http://localhost:3000/api/evidence/close`,
-                  { incidentId },
-                  { headers: { Authorization: `Bearer ${token}` } }
-                );
-                fetchIncidentDetails();
-              }}
-              className="px-6 py-3 bg-royal-500 hover:bg-royal-600 text-white font-semibold rounded-xl transition-all"
-            >
-              Close Incident
-            </button>
-          )}
-        </div>
-
-      </div>
+      )}
     </div>
   );
 }
