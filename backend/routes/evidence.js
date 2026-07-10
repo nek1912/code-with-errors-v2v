@@ -1,26 +1,24 @@
 const express = require('express');
-const multer = require('multer');
-const { uploadEvidence } = require('../services/StorageService');
-const {
-  startIncident,
-  saveEvidenceFile,
-  saveIncidentLocation,
-  addIncidentNote,
-  closeIncident,
-  getIncidentData,
-  generateReportSummary
-} = require('../services/EvidenceService');
-
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const multer = require('multer');
+const supabase = require('../utils/supabase');
+const EvidenceService = require('../services/EvidenceService');
+const PDFService = require('../services/PDFService');
+const authMiddleware = require('../middleware/auth');
+
+// Configure multer for memory storage
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 100 * 1024 * 1024 } // 100MB limit
+});
 
 // POST /api/evidence/start
-router.post('/start', async (req, res) => {
+router.post('/start', authMiddleware, async (req, res) => {
   try {
-    const { journeyId, userId, type } = req.body;
-    if (!userId || !type) return res.status(400).json({ error: 'Missing required fields' });
-
-    const result = await startIncident(journeyId, userId, type);
+    const { journeyId, type = 'SOS' } = req.body;
+    const userId = req.user.id;
+    
+    const result = await EvidenceService.startIncident(journeyId, userId, type);
     res.json(result);
   } catch (error) {
     console.error('Error starting incident:', error);
@@ -29,23 +27,26 @@ router.post('/start', async (req, res) => {
 });
 
 // POST /api/evidence/upload
-// Note: 'file' is the name of the form-data field
-router.post('/upload', upload.single('file'), async (req, res) => {
+router.post('/upload', authMiddleware, upload.single('file'), async (req, res) => {
   try {
-    const { incidentId, journeyId, type } = req.body;
+    const { incidentId, duration } = req.body;
     const file = req.file;
+    const userId = req.user.id;
 
-    if (!incidentId || !file || !type) {
-      return res.status(400).json({ error: 'Missing incidentId, file, or type (AUDIO/IMAGE)' });
+    if (!file) {
+      return res.status(400).json({ error: 'No file provided' });
     }
 
-    // 1. Upload to storage via Multer buffer
-    const fileUrl = await uploadEvidence(incidentId, file);
+    const result = await EvidenceService.uploadEvidenceFile(
+      incidentId,
+      file.buffer,
+      file.originalname,
+      file.mimetype,
+      file.size,
+      parseInt(duration) || 0
+    );
 
-    // 2. Save record to evidence_files
-    await saveEvidenceFile(incidentId, journeyId, type, fileUrl);
-
-    res.json({ success: true, fileUrl });
+    res.json(result);
   } catch (error) {
     console.error('Error uploading evidence:', error);
     res.status(500).json({ error: error.message });
@@ -53,70 +54,98 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 });
 
 // POST /api/evidence/location
-router.post('/location', async (req, res) => {
+router.post('/location', authMiddleware, async (req, res) => {
   try {
-    const { incidentId, latitude, longitude } = req.body;
-    if (!incidentId || latitude === undefined || longitude === undefined) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-
-    await saveIncidentLocation(incidentId, latitude, longitude);
-    res.json({ success: true });
+    const { incidentId, latitude, longitude, accuracy } = req.body;
+    
+    const result = await EvidenceService.saveIncidentLocation(
+      incidentId, 
+      latitude, 
+      longitude, 
+      accuracy || 0
+    );
+    
+    res.json(result);
   } catch (error) {
-    console.error('Error saving incident location:', error);
+    console.error('Error saving location:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
 // POST /api/evidence/note
-router.post('/note', async (req, res) => {
+router.post('/note', authMiddleware, async (req, res) => {
   try {
-    const { incidentId, note, createdBy } = req.body;
-    if (!incidentId || !note) return res.status(400).json({ error: 'Missing required fields' });
-
-    await addIncidentNote(incidentId, note, createdBy);
-    res.json({ success: true });
+    const { incidentId, note } = req.body;
+    const userId = req.user.id;
+    const userName = req.user.email || 'User';
+    
+    const result = await EvidenceService.addIncidentNote(incidentId, note, userId, userName);
+    res.json(result);
   } catch (error) {
-    console.error('Error adding incident note:', error);
+    console.error('Error adding note:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
 // POST /api/evidence/close
-router.post('/close', async (req, res) => {
+router.post('/close', authMiddleware, async (req, res) => {
   try {
-    const { incidentId, journeyId, summary } = req.body;
-    if (!incidentId) return res.status(400).json({ error: 'Missing incidentId' });
-
-    await closeIncident(incidentId, journeyId, summary);
-    res.json({ success: true });
+    const { incidentId, summary } = req.body;
+    
+    const result = await EvidenceService.closeIncident(incidentId, summary);
+    res.json(result);
   } catch (error) {
     console.error('Error closing incident:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// GET /api/evidence/report/:incidentId
-// IMPORTANT: Must be defined before the /:incidentId route so 'report' isn't treated as an ID
-router.get('/report/:incidentId', async (req, res) => {
+// GET /api/evidence/:incidentId
+router.get('/:incidentId', authMiddleware, async (req, res) => {
   try {
     const { incidentId } = req.params;
-    const summary = await generateReportSummary(incidentId);
-    res.json(summary);
+    
+    const details = await EvidenceService.getIncidentDetails(incidentId);
+    res.json(details);
   } catch (error) {
-    console.error('Error generating report summary:', error);
+    console.error('Error getting incident:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// GET /api/evidence/:incidentId (The Master Aggregator)
-router.get('/:incidentId', async (req, res) => {
+// GET /api/evidence/user/:userId
+router.get('/user/:userId', authMiddleware, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const { data: incidents, error } = await supabase
+      .from('incidents')
+      .select('*')
+      .eq('user_id', userId)
+      .order('started_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json({ success: true, incidents: incidents || [] });
+  } catch (error) {
+    console.error('Error getting user incidents:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/evidence/report/:incidentId (PDF Download)
+router.get('/report/:incidentId', authMiddleware, async (req, res) => {
   try {
     const { incidentId } = req.params;
-    const data = await getIncidentData(incidentId);
-    res.json(data);
+    const details = await EvidenceService.getIncidentDetails(incidentId);
+    
+    const pdfBuffer = await PDFService.generateIncidentReport(details);
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=incident-${incidentId}.pdf`);
+    res.send(pdfBuffer);
   } catch (error) {
-    console.error('Error fetching incident data:', error);
+    console.error('Error generating report:', error);
     res.status(500).json({ error: error.message });
   }
 });

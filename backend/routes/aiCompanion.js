@@ -1,41 +1,17 @@
 const express = require('express');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const OpenAI = require('openai');
 require('dotenv').config();
 
 const router = express.Router();
 
-// Initialize Gemini - using gemini-flash-latest for best availability
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+// Initialize Groq using OpenAI SDK
+const groq = new OpenAI({
+  apiKey: process.env.GROQ_API_KEY,
+  baseURL: process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1'
+});
 
-// Test API Key on startup
-console.log('🔑 GEMINI_API_KEY exists:', !!process.env.GEMINI_API_KEY);
-console.log('🔑 Key starts with:', process.env.GEMINI_API_KEY?.substring(0, 10) + '...');
-
-router.post('/chat', async (req, res) => {
-  console.log('========================================');
-  console.log(' NEW REQUEST TO /api/ai/chat');
-  console.log('========================================');
-  console.log('Request Body:', JSON.stringify(req.body, null, 2));
-  
-  try {
-    const { user_message, context, chat_history } = req.body;
-
-    // VALIDATION 1: Check if API key exists
-    if (!process.env.GEMINI_API_KEY) {
-      console.error('❌ ERROR: GEMINI_API_KEY is NOT set in .env!');
-      return res.status(500).json({ 
-        error: 'API key missing',
-        debug: 'Check your .env file'
-      });
-    }
-
-    // VALIDATION 2: Check if context exists
-    console.log(' Context received:', context);
-    console.log('💬 User message:', user_message);
-
-    // Build system prompt
-    const systemPrompt = `You are "Aura", a vigilant AI safety companion for women.
+function buildSystemPrompt(context) {
+  return `You are "Aura", a vigilant AI safety companion for women.
 
 CONTEXT:
 - Time: ${context?.time || 'unknown'}:00
@@ -46,6 +22,7 @@ RULES:
 1. If battery < 20% OR time > 22:00 → HIGH ALERT
 2. Be concise and actionable
 3. ALWAYS respond with valid JSON ONLY
+4. You MUST respond with valid JSON ONLY. Do not include any markdown formatting, conversational filler, or text outside the JSON object.
 
 JSON FORMAT:
 {
@@ -53,58 +30,64 @@ JSON FORMAT:
   "risk_level": "low" | "medium" | "high",
   "ui_actions": ["share_location", "start_fake_call", "none"]
 }`;
+}
 
-    console.log(' System Prompt:', systemPrompt.substring(0, 100) + '...');
+router.post('/chat', async (req, res) => {
+  console.log('🔥 GROQ REQUEST RECEIVED:', req.body.user_message);
+  
+  try {
+    const { user_message, context, chat_history } = req.body;
 
-    // VALIDATION 3: Test Gemini Connection
-    console.log('🔄 Calling Gemini API...');
-    
-    const fullPrompt = `${systemPrompt}\n\nUser: ${user_message}\n\nAssistant (JSON only):`;
+    if (!process.env.GROQ_API_KEY) {
+      return res.status(500).json({ error: 'GROQ_API_KEY is missing' });
+    }
 
-    const result = await model.generateContent(fullPrompt);
-    const response = await result.response;
-    const aiText = response.text();
+    const systemPrompt = buildSystemPrompt(context);
 
-    console.log('✅ GEMINI RESPONSE RECEIVED!');
-    console.log('Raw response:', aiText);
+    // Format chat history for OpenAI/Groq
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      ...(chat_history || []).map(msg => ({
+        role: msg.role === 'ai' ? 'assistant' : 'user',
+        content: msg.content
+      })),
+      { role: 'user', content: user_message }
+    ];
 
-    // VALIDATION 4: Parse JSON
+    console.log('🔄 Calling Groq API...');
+
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile', // Hardcoded to bypass nodemon env caching
+      messages: messages,
+      temperature: 0.7,
+      max_tokens: 500,
+      response_format: { type: "json_object" } 
+    });
+
+    const aiText = completion.choices[0].message.content;
+    console.log('✅ Groq Response:', aiText);
+
+    // Parse JSON (Groq/Llama might occasionally wrap it in markdown)
     let parsedResponse;
     try {
       const cleanText = aiText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       parsedResponse = JSON.parse(cleanText);
-      console.log('✅ PARSED JSON:', parsedResponse);
     } catch (parseError) {
-      console.error('❌ JSON PARSE FAILED:', parseError);
-      console.error('Raw text that failed to parse:', aiText);
-      
-      // Return the raw text as message
+      console.error('JSON Parse Error:', parseError);
       parsedResponse = {
-        message: aiText,
+        message: "I understand. Please stay safe!",
         risk_level: "medium",
         ui_actions: ["share_location"]
       };
     }
 
-    console.log(' Sending response to frontend');
     res.json(parsedResponse);
 
   } catch (error) {
-    console.error('========================================');
-    console.error('💥 BACKEND ERROR in /api/ai/chat');
-    console.error('========================================');
-    console.error('Error type:', error.constructor.name);
-    console.error('Error message:', error.message);
-    console.error('Full error:', error);
-    
-    if (error.response) {
-      console.error('API Response error:', error.response.data);
-    }
-
+    console.error('💥 Groq API Error:', error);
     res.status(500).json({
-      error: 'Gemini API failed',
-      message: error.message,
-      type: error.constructor.name
+      error: 'AI service unavailable',
+      message: error.message
     });
   }
 });

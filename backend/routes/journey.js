@@ -33,6 +33,25 @@ router.post('/location', async (req, res) => {
     }
 
     const result = await processNewLocation(journeyId, latitude, longitude, speed || 0);
+
+    // --- ALERT ENGINE INTEGRATION ---
+    const AlertEngine = require('../services/AlertEngine');
+    
+    // We need userId for alerts. Assuming result contains it, or we fetch it.
+    // If result.journey.user_id exists, use it. Otherwise, use a default/null if not easily accessible here.
+    // To be safe, we'll extract it from result if possible.
+    const userId = result?.journey?.user_id || req.body.userId || '550e8400-e29b-41d4-a716-446655440000';
+
+    // Run alert engine asynchronously so it doesn't block the location response
+    AlertEngine.evaluateRoute(journeyId, userId, latitude, longitude)
+      .then(alertResult => {
+        if (alertResult.newAlerts.length > 0) {
+          console.log(`🚨 Generated ${alertResult.newAlerts.length} smart alerts!`);
+        }
+      })
+      .catch(err => console.error('Alert engine failed:', err));
+    // --- END ALERT ENGINE ---
+
     res.json(result);
   } catch (error) {
     console.error('Error processing location:', error);
@@ -120,6 +139,12 @@ router.post('/emergency', async (req, res) => {
     
     const { triggerEmergency } = require('../services/JourneyService');
     const result = await triggerEmergency(journeyId);
+    
+    // Trigger Web Push Notification for Guardians
+    const { sendSOSAlert } = require('./notifications');
+    const userId = result?.journey?.user_id || '550e8400-e29b-41d4-a716-446655440000';
+    await sendSOSAlert(journeyId, userId);
+
     res.json(result);
   } catch (error) {
     console.error('Error triggering emergency:', error);

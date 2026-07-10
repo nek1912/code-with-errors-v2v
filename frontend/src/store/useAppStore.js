@@ -2,8 +2,10 @@ import { create } from 'zustand';
 
 export const useAppStore = create((set) => ({
   // User State
+  user: null,
+  session: null,
   currentLocation: { lat: 22.307, lng: 73.181 }, // Default fallback
-  activeJourneyId: 'demo-journey-123',
+  activeJourneyId: null,
   
   // Emergency State
   isEmergencyActive: false,
@@ -15,10 +17,7 @@ export const useAppStore = create((set) => ({
   },
   
   // Guardian State
-  guardianTimeline: [
-    { id: 1, title: 'Journey Started', time: '10:00 AM' },
-    { id: 2, title: 'Deviated from path', time: '10:15 AM' }
-  ],
+  guardianTimeline: [],
   guardianEmergencyState: null, // Holds session data if emergency
 
   // Smart Alerts State
@@ -29,6 +28,8 @@ export const useAppStore = create((set) => ({
   aiSummary: "Your route looks mostly clear, but there are some minor crowds ahead. Stay aware.",
 
   // Actions
+  setUser: (user) => set({ user }),
+  setSession: (session) => set({ session }),
   setCurrentLocation: (loc) => set({ currentLocation: loc }),
   setActiveJourney: (id) => set({ activeJourneyId: id }),
   triggerEmergency: () => set({ isEmergencyActive: true }),

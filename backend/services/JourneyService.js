@@ -37,10 +37,12 @@ async function startJourney(userId, destinationName, destinationLat, destination
 }
 
 async function endJourney(journeyId) {
+  const endTime = new Date();
+  
   // Update status to 'COMPLETED'
   const { data: journey, error: journeyError } = await supabase
     .from('journeys')
-    .update({ status: 'COMPLETED', ended_at: new Date() })
+    .update({ status: 'COMPLETED' })
     .eq('id', journeyId)
     .select()
     .single();
@@ -76,7 +78,7 @@ async function endJourney(journeyId) {
     averageSpeed = speeds.reduce((a, b) => a + b, 0) / speeds.length;
   }
 
-  const durationMs = new Date(journey.ended_at) - new Date(journey.started_at);
+  const durationMs = endTime - new Date(journey.started_at || endTime);
   const durationMins = Math.round(durationMs / 60000);
 
   return { 

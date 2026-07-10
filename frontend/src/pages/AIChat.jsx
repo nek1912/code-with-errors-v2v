@@ -101,13 +101,13 @@ export default function AIChat() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-900 text-white pb-16 md:pb-0">
-      <div className="p-4 bg-gray-800 border-b border-gray-700 shadow-md z-10 flex items-center justify-between">
+    <div className="flex flex-col h-full bg-navy-900 text-white pb-16 md:pb-0">
+      <div className="p-4 bg-navy-800 border-b border-navy-700 shadow-md z-10 flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-400">Aura</h2>
-          <p className="text-xs text-gray-400">AI Safety Companion</p>
+          <p className="text-xs text-navy-600">AI Safety Companion</p>
         </div>
-        <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center animate-pulse shadow-[0_0_10px_rgba(37,99,235,0.8)]">
+        <div className="w-8 h-8 rounded-full bg-royal-500 flex items-center justify-center animate-pulse shadow-[0_0_10px_rgba(37,99,235,0.8)]">
           ✨
         </div>
       </div>
@@ -115,7 +115,7 @@ export default function AIChat() {
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((msg, idx) => (
           <div key={idx} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-            <div className={`max-w-[80%] p-3 rounded-2xl ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-gray-800 text-gray-200 border border-gray-700 rounded-bl-none'}`}>
+            <div className={`max-w-[80%] p-3 rounded-2xl ${msg.role === 'user' ? 'bg-royal-500 text-white rounded-br-none' : 'bg-navy-800 text-gray-200 border border-navy-700 rounded-bl-none'}`}>
               <p className="text-sm md:text-base leading-relaxed">{msg.content}</p>
             </div>
             
@@ -125,7 +125,7 @@ export default function AIChat() {
                   <button 
                     key={action}
                     onClick={() => handleAction(action)}
-                    className="bg-indigo-600/80 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-full text-xs font-semibold shadow-lg transition-transform transform hover:scale-105 border border-indigo-400/30"
+                    className="bg-royal-500/80 hover:bg-royal-600 text-white px-3 py-1.5 rounded-full text-xs font-semibold shadow-lg transition-transform transform hover:scale-105 border border-indigo-400/30"
                   >
                     {actionLabels[action] || action}
                   </button>
@@ -136,7 +136,7 @@ export default function AIChat() {
         ))}
         {isTyping && (
           <div className="flex items-start">
-             <div className="bg-gray-800 text-gray-400 border border-gray-700 rounded-2xl rounded-bl-none p-3 flex space-x-1">
+             <div className="bg-navy-800 text-navy-600 border border-navy-700 rounded-2xl rounded-bl-none p-3 flex space-x-1">
                <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce"></div>
                <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
                <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
@@ -146,8 +146,8 @@ export default function AIChat() {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-4 bg-gray-800 border-t border-gray-700">
-        <div className="flex items-center bg-gray-900 rounded-full border border-gray-700 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 px-4 py-2">
+      <div className="p-4 bg-navy-800 border-t border-navy-700">
+        <div className="flex items-center bg-navy-900 rounded-full border border-navy-700 focus-within:border-royal-500 focus-within:ring-1 focus-within:ring-blue-500 px-4 py-2">
           <input 
             type="text" 
             value={input}
@@ -159,7 +159,7 @@ export default function AIChat() {
           <button 
             onClick={handleSend}
             disabled={!input.trim()}
-            className="ml-2 text-blue-500 hover:text-blue-400 font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+            className="ml-2 text-royal-500 hover:text-royal-500 font-bold disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Send
           </button>

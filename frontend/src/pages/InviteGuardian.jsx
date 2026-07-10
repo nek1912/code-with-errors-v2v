@@ -41,12 +41,12 @@ export default function InviteGuardian() {
   };
 
   return (
-    <div className="flex flex-col items-center p-6 h-full bg-gray-900 text-white overflow-y-auto pb-24">
-      <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-blue-500/50">
+    <div className="flex flex-col items-center p-6 h-full bg-navy-900 text-white overflow-y-auto pb-24">
+      <div className="w-16 h-16 bg-royal-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-blue-500/50">
         <span className="text-3xl">👥</span>
       </div>
       <h1 className="text-3xl font-extrabold mb-2 text-center">Invite a Guardian</h1>
-      <p className="text-gray-400 mb-8 text-center max-w-sm">
+      <p className="text-navy-600 mb-8 text-center max-w-sm">
         Guardians can track your live location and receive instant alerts if you trigger an SOS.
       </p>
 
@@ -59,21 +59,21 @@ export default function InviteGuardian() {
           {loading ? 'Generating...' : 'Generate Invite Link'}
         </button>
       ) : (
-        <div className="w-full max-w-sm flex flex-col items-center bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-2xl">
-          <h3 className="text-lg font-bold mb-4 text-blue-400">Scan to Accept</h3>
+        <div className="w-full max-w-sm flex flex-col items-center bg-navy-800 p-6 rounded-2xl border border-navy-700 shadow-2xl">
+          <h3 className="text-lg font-bold mb-4 text-royal-500">Scan to Accept</h3>
           
           <div className="bg-white p-4 rounded-xl mb-6 shadow-inner flex justify-center">
             <QRCode value={inviteData.inviteLink} size={200} />
           </div>
 
-          <p className="text-xs text-red-400 mb-6 font-bold uppercase tracking-widest bg-red-900/30 px-3 py-1 rounded-full border border-red-500/30">
+          <p className="text-xs text-red-400 mb-6 font-bold uppercase tracking-widest bg-red-900/30 px-3 py-1 rounded-full border border-gold-500/30">
             Expires in 7 days
           </p>
 
           <div className="w-full space-y-3">
             <button 
               onClick={copyToClipboard}
-              className="w-full py-3 bg-gray-700 hover:bg-gray-600 rounded-xl font-bold flex items-center justify-center space-x-2 transition"
+              className="w-full py-3 bg-navy-700 hover:bg-gray-600 rounded-xl font-bold flex items-center justify-center space-x-2 transition"
             >
               <span>📋</span>
               <span>Copy Link</span>
