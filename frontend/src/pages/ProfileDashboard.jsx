@@ -7,7 +7,7 @@ import { useAppStore } from '../store/useAppStore';
 
 export default function ProfileDashboard() {
   const navigate = useNavigate();
-  const { user, setUser, logout } = useAppStore();
+  const { user, setUser } = useAppStore();
   const [activeTab, setActiveTab] = useState('account');
   const [profile, setProfile] = useState(null);
   const [guardians, setGuardians] = useState([]);
@@ -105,7 +105,7 @@ export default function ProfileDashboard() {
   };
 
   const handleLogout = () => {
-    logout();
+    authService.logout();
     navigate('/login');
   };
 
@@ -325,7 +325,7 @@ export default function ProfileDashboard() {
                         <div className="mb-2 md:mb-0">
                           <div className="text-white font-semibold text-lg">{journey.destination_name}</div>
                           <div className="text-navy-400 text-sm mt-1 flex items-center gap-4">
-                            <span>Started: {new Date(journey.started_at).toLocaleString()}</span>
+                            <span>Started: {new Date(journey.created_at).toLocaleString()}</span>
                             {journey.ended_at && <span>Ended: {new Date(journey.ended_at).toLocaleTimeString()}</span>}
                           </div>
                         </div>

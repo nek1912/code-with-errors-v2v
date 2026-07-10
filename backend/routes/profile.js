@@ -126,9 +126,9 @@ router.get('/journeys', authMiddleware, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('journeys')
-      .select('id, destination_name, status, started_at, ended_at')
+      .select('id, destination_name, status, created_at, ended_at')
       .eq('user_id', req.user.id)
-      .order('started_at', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(20);
 
     if (error) throw error;

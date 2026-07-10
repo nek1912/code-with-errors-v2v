@@ -100,7 +100,7 @@ export default function UserHome() {
       }
     } catch (error) {
       console.error('Error starting journey:', error);
-      alert('Failed to start journey. Check console for details. Make sure you applied the DB migrations!');
+      alert(`Failed to start journey: ${error.response?.data?.error || error.message}`);
     } finally {
       setIsStarting(false);
     }

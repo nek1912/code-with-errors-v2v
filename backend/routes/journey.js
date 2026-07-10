@@ -134,18 +134,60 @@ router.post('/deviation', async (req, res) => {
 // POST /api/journey/emergency
 router.post('/emergency', async (req, res) => {
   try {
-    const { journeyId } = req.body;
-    if (!journeyId) return res.status(400).json({ error: 'Missing journeyId' });
+    // The snippet requires journeyId, userId, latitude, longitude
+    const { journeyId, userId, latitude, longitude } = req.body;
     
+    if (!journeyId) return res.status(400).json({ error: 'Missing journeyId' });
+
+    // Ensure we trigger the existing logic as well, but now we integrate the new explicit steps
     const { triggerEmergency } = require('../services/JourneyService');
     const result = await triggerEmergency(journeyId);
     
+    // Resolve user ID if not provided in body
+    const resolvedUserId = userId || result?.journey?.user_id || '550e8400-e29b-41d4-a716-446655440000';
+    
+    const { supabase } = require('../utils/supabase');
+    const EvidenceService = require('../services/EvidenceService');
+
+    // 1. Create/Update Emergency Session
+    const { data: session, error: sessionError } = await supabase
+      .from('emergency_sessions')
+      .insert({
+        journey_id: journeyId,
+        user_id: resolvedUserId,
+        status: 'ACTIVE',
+        last_latitude: latitude || result?.journey?.destination_lat || 0,
+        last_longitude: longitude || result?.journey?.destination_lng || 0,
+        started_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (sessionError) {
+      console.error('Session error, it may already exist or table missing:', sessionError);
+      // We don't throw to not break existing flow if table isn't strictly ready
+    }
+
+    // 2. Start Evidence Vault
+    let incidentId = null;
+    try {
+      const evidenceResult = await EvidenceService.startIncident(journeyId, resolvedUserId, 'SOS');
+      incidentId = evidenceResult.incidentId;
+    } catch (e) {
+      console.error('Error starting incident:', e);
+    }
+
     // Trigger Web Push Notification for Guardians
     const { sendSOSAlert } = require('./notifications');
-    const userId = result?.journey?.user_id || '550e8400-e29b-41d4-a716-446655440000';
-    await sendSOSAlert(journeyId, userId);
+    await sendSOSAlert(journeyId, resolvedUserId);
 
-    res.json(result);
+    res.json({ 
+      success: true, 
+      sessionId: session?.id, 
+      incidentId: incidentId,
+      ...result
+    });
+
   } catch (error) {
     console.error('Error triggering emergency:', error);
     res.status(500).json({ error: error.message });

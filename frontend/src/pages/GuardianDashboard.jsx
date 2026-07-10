@@ -39,6 +39,27 @@ export default function GuardianDashboard() {
     }
   });
 
+  // Listen for updates (specifically for audio_url)
+  useEffect(() => {
+    import('../utils/supabase').then(({ supabase }) => {
+      const channel = supabase
+        .channel('emergency-audio')
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'emergency_sessions' },
+          (payload) => {
+            if (payload.new.audio_url && payload.new.status === 'ACTIVE') {
+              console.log('🔊 New audio evidence received:', payload.new.audio_url);
+              setGuardianEmergency(payload.new); // We can just update the global emergency state
+            }
+          }
+        )
+        .subscribe();
+
+      return () => supabase.removeChannel(channel);
+    });
+  }, [setGuardianEmergency]);
+
   // Play alert sound when emergency state is active
   useEffect(() => {
     if (guardianEmergencyState) {

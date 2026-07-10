@@ -83,6 +83,37 @@ class EvidenceService {
 
       if (dbError) throw dbError;
 
+      // START OF NEW LOGIC: Link audio to emergency session
+      if (fileType.includes('audio')) {
+        // 1. Get journey_id from incident
+        const { data: incident } = await supabase
+          .from('incidents')
+          .select('journey_id')
+          .eq('id', incidentId)
+          .single();
+
+        if (incident && incident.journey_id) {
+          // 2. Find active emergency session for this journey
+          const { data: session } = await supabase
+            .from('emergency_sessions')
+            .select('id')
+            .eq('journey_id', incident.journey_id)
+            .eq('status', 'ACTIVE')
+            .single();
+
+          if (session) {
+            // 3. Update the session with the new audio URL
+            await supabase
+              .from('emergency_sessions')
+              .update({ audio_url: fileUrl })
+              .eq('id', session.id);
+              
+            console.log('✅ Updated emergency session with audio URL:', fileUrl);
+          }
+        }
+      }
+      // END OF NEW LOGIC
+
       console.log('✅ Evidence file saved:', fileUrl);
       return { success: true, fileUrl, evidenceFileId: evidenceFile.id };
 

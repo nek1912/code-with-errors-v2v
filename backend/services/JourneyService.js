@@ -78,7 +78,7 @@ async function endJourney(journeyId) {
     averageSpeed = speeds.reduce((a, b) => a + b, 0) / speeds.length;
   }
 
-  const durationMs = endTime - new Date(journey.started_at || endTime);
+  const durationMs = endTime - new Date(journey.created_at || endTime);
   const durationMins = Math.round(durationMs / 60000);
 
   return { 
@@ -97,7 +97,7 @@ async function getJourneyHistory(userId) {
     .from('journeys')
     .select('*')
     .eq('user_id', userId)
-    .order('started_at', { ascending: false });
+    .order('created_at', { ascending: false });
 
   if (error) throw error;
   return data;

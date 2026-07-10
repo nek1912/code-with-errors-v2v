@@ -17,9 +17,15 @@ export const authService = {
     return data;
   },
 
-  logout: () => {
+  logout: async () => {
+    // Clear frontend state immediately so navigation doesn't bounce back
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    try {
+      await axios.post(`${API_URL}/auth/logout`);
+    } catch (e) {
+      console.error('Backend logout failed', e);
+    }
   },
 
   getCurrentUser: () => {

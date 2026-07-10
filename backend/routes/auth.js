@@ -99,4 +99,18 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// POST /api/auth/logout
+router.post('/logout', async (req, res) => {
+  try {
+    // In a stateless JWT system, the frontend handles logout by deleting the token.
+    // If you want to invalidate tokens on the backend, you would add the token to a 
+    // 'revoked_tokens' table in Supabase here.
+    
+    res.json({ success: true, message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;
