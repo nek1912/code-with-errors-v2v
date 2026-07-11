@@ -3,6 +3,21 @@ import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, MapPin, Phone, AlertTriangle, Mic, Shield } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
+import api from '../services/api';
+
+const quickActions = [
+  { label: 'Safety tips for walking alone', icon: Shield, prompt: 'Give me safety tips for walking alone at night' },
+  { label: 'What to do in emergency', icon: Phone, prompt: 'What should I do in an emergency situation?' },
+  { label: 'Safe places near me', icon: MapPin, prompt: 'How can I find safe places near me?' },
+  { label: 'Self-defense basics', icon: Shield, prompt: 'Teach me basic self-defense moves' },
+];
+
+const examplePrompts = [
+  'How do I set up my emergency contacts?',
+  'What are the safest routes to take at night?',
+  'How can I protect myself while traveling alone?',
+  'What should I do if I feel followed?',
+];
 
 export default function AIChat() {
   const [messages, setMessages] = useState([
@@ -22,8 +37,8 @@ export default function AIChat() {
   };
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, isTyping]);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   useEffect(() => {
     // Request permission early so Unsaid has context
@@ -144,7 +159,7 @@ export default function AIChat() {
     } catch (err) {
       console.error(err);
     } finally {
-      setIsTyping(false);
+      setLoading(false);
     }
   };
 
@@ -285,6 +300,32 @@ export default function AIChat() {
             <Send className="w-5 h-5" />
           </button>
         </div>
+      )}
+
+      {/* Input */}
+      <div className="border-t border-hairline-soft pt-4">
+        <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex gap-2">
+          <div className="flex-1 relative">
+            <Sparkles className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-soft" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask about safety tips, emergency procedures..."
+              className="input-field"
+              style={{ paddingLeft: '2.5rem' }}
+              disabled={loading}
+            />
+          </div>
+          <button type="submit" disabled={loading || !input.trim()} className="btn-primary">
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          </button>
+        </form>
+        <p className="text-caption text-muted-soft mt-2 text-center">
+          AI responses are for informational purposes only. In emergencies, always call emergency services.
+        </p>
       </div>
     </div>
   );

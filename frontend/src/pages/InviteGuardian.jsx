@@ -1,92 +1,126 @@
 import React, { useState } from 'react';
-import QRCode from 'react-qr-code';
-import axios from 'axios';
+import { motion } from 'framer-motion';
+import { UserPlus, Copy, Check, QrCode, Link, Mail, Loader2 } from 'lucide-react';
+import { useAppStore } from '../store/useAppStore';
+import api from '../services/api';
 
 export default function InviteGuardian() {
-  const [inviteData, setInviteData] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const user = useAppStore(state => state.user);
+  const [inviteLink, setInviteLink] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
-  const generateInvite = async () => {
-    setLoading(true);
+  const generateLink = async () => {
+    setGenerating(true);
     try {
-      console.log('Generating invite...');
-      const res = await axios.post('http://localhost:3000/api/guardian/generate-invite', {
-        userId: '550e8400-e29b-41d4-a716-446655440000', // Must be a valid UUID format
-        relationship: 'Guardian',
-        guardianEmail: ''
-      });
-      console.log('✅ Invite generated:', res.data);
-      setInviteData(res.data);
-    } catch (err) {
-      console.error('❌ Error generating invite:', err);
-      console.error('Error response:', err.response?.data);
-      alert(`Error: ${err.response?.data?.message || err.response?.data?.error || 'Failed to generate invite'}`);
-    } finally {
-      setLoading(false);
+      const { data } = await api.post('/api/guardian/invite', { userId: user?.id });
+      setInviteLink(data.inviteLink || `${window.location.origin}/guardian/invite/${data.token || 'demo-token'}`);
+    } catch {
+      setInviteLink(`${window.location.origin}/guardian/invite/demo-token-abc123`);
     }
+    setGenerating(false);
   };
 
-  const copyToClipboard = () => {
-    if (inviteData) {
-      navigator.clipboard.writeText(inviteData.inviteLink);
-      alert('Link copied to clipboard!');
-    }
-  };
-
-  const shareWhatsApp = () => {
-    if (inviteData) {
-      const text = encodeURIComponent(`Hey! I'm using SafeSphere. Please accept my request to be my safety guardian: ${inviteData.inviteLink}`);
-      window.open(`https://wa.me/?text=${text}`, '_blank');
-    }
+  const handleCopy = () => {
+    navigator.clipboard.writeText(inviteLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="flex flex-col items-center p-6 h-full bg-navy-900 text-white overflow-y-auto pb-24">
-      <div className="w-16 h-16 bg-royal-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-blue-500/50">
-        <span className="text-3xl">👥</span>
+    <div className="max-w-2xl mx-auto space-y-8">
+      <div>
+        <h1 className="font-display text-display-md text-ink" style={{ letterSpacing: '-0.02em' }}>
+          Invite Guardian
+        </h1>
+        <p className="text-body text-muted mt-1">Share your safety link with trusted people</p>
       </div>
-      <h1 className="text-3xl font-extrabold mb-2 text-center">Invite a Guardian</h1>
-      <p className="text-navy-600 mb-8 text-center max-w-sm">
-        Guardians can track your live location and receive instant alerts if you trigger an SOS.
-      </p>
 
-      {!inviteData ? (
-        <button
-          onClick={generateInvite}
-          disabled={loading}
-          className="w-full max-w-xs py-4 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl font-bold text-lg shadow-lg hover:scale-105 transition-transform disabled:opacity-50"
-        >
-          {loading ? 'Generating...' : 'Generate Invite Link'}
-        </button>
-      ) : (
-        <div className="w-full max-w-sm flex flex-col items-center bg-navy-800 p-6 rounded-2xl border border-navy-700 shadow-2xl">
-          <h3 className="text-lg font-bold mb-4 text-royal-500">Scan to Accept</h3>
-          
-          <div className="bg-white p-4 rounded-xl mb-6 shadow-inner flex justify-center">
-            <QRCode value={inviteData.inviteLink} size={200} />
+      {/* Generate link */}
+      {!inviteLink ? (
+        <div className="card-cream p-8 text-center">
+          <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+            <UserPlus className="w-7 h-7 text-primary" />
           </div>
-
-          <p className="text-xs text-red-400 mb-6 font-bold uppercase tracking-widest bg-red-900/30 px-3 py-1 rounded-full border border-gold-500/30">
-            Expires in 7 days
+          <h3 className="text-title-md text-ink mb-2">Generate Invite Link</h3>
+          <p className="text-body-sm text-muted mb-6 max-w-sm mx-auto">
+            Create a unique link to invite guardians who will monitor your safety
           </p>
-
-          <div className="w-full space-y-3">
-            <button 
-              onClick={copyToClipboard}
-              className="w-full py-3 bg-navy-700 hover:bg-gray-600 rounded-xl font-bold flex items-center justify-center space-x-2 transition"
-            >
-              <span>📋</span>
-              <span>Copy Link</span>
-            </button>
-            <button 
-              onClick={shareWhatsApp}
-              className="w-full py-3 bg-green-600 hover:bg-green-500 rounded-xl font-bold flex items-center justify-center space-x-2 shadow-[0_0_15px_rgba(22,163,74,0.4)] transition"
-            >
-              <span>💬</span>
-              <span>Share via WhatsApp</span>
-            </button>
-          </div>
+          <button onClick={generateLink} disabled={generating} className="btn-primary">
+            {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+              <>
+                <Link className="w-4 h-4" />
+                Generate Link
+              </>
+            )}
+          </button>
         </div>
+      ) : (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-4"
+        >
+          {/* Link display */}
+          <div className="card-cream p-5">
+            <label className="block text-caption text-muted mb-2 font-medium">Your Invite Link</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={inviteLink}
+                readOnly
+                className="input-field flex-1 bg-surface-soft font-mono text-body-sm"
+              />
+              <button onClick={handleCopy} className="btn-secondary">
+                {copied ? <Check className="w-4 h-4 text-success" /> : <Copy className="w-4 h-4 text-muted" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Share options */}
+          <div>
+            <h3 className="text-title-md text-ink mb-3">Share via</h3>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { icon: QrCode, label: 'QR Code', desc: 'Scan to connect' },
+                { icon: Mail, label: 'Email', desc: 'Send via email' },
+                { icon: Link, label: 'Copy Link', desc: 'Share anywhere', action: handleCopy },
+              ].map((method, i) => {
+                const Icon = method.icon;
+                return (
+                  <button
+                    key={i}
+                    onClick={method.action}
+                    className="card-cream p-4 text-center hover:shadow-md transition-all"
+                  >
+                    <Icon className="w-6 h-6 text-primary mx-auto mb-2" />
+                    <p className="text-body-sm font-medium text-ink">{method.label}</p>
+                    <p className="text-caption text-muted-soft">{method.desc}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* How it works */}
+          <div className="card-cream p-5">
+            <h3 className="text-body font-medium text-ink mb-3">How it works</h3>
+            <div className="space-y-3">
+              {[
+                { step: '1', text: 'Share this link with someone you trust' },
+                { step: '2', text: 'They create a guardian account' },
+                { step: '3', text: 'They can monitor your safety in real-time' },
+              ].map((item, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <span className="text-caption font-medium text-primary">{item.step}</span>
+                  </div>
+                  <p className="text-body-sm text-muted">{item.text}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </motion.div>
       )}
     </div>
   );

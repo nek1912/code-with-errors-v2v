@@ -1,248 +1,373 @@
-import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Award, Download } from 'lucide-react';
-import { useAppStore } from '../store/useAppStore';
+import { motion } from 'framer-motion';
+import {
+  ArrowLeft, CheckCircle, Clock, BookOpen, ChevronRight, ChevronLeft,
+  Shield, Lightbulb, AlertTriangle, Star
+} from 'lucide-react';
+import api from '../services/api';
+
+const fallbackLesson = {
+  id: 1,
+  title: 'Street Safety Awareness',
+  category: 'safety',
+  duration: 5,
+  completed: false,
+  difficulty: 'Beginner',
+  rating: 4.8,
+  content: [
+    {
+      type: 'intro',
+      body: 'Being aware of your surroundings is the most important aspect of personal safety. This lesson covers essential tips for staying safe while walking on streets, especially at night.'
+    },
+    {
+      type: 'text',
+      title: 'Stay Alert and Aware',
+      body: 'Always be aware of your surroundings. Avoid distractions like looking at your phone while walking. Keep your head up, make eye contact with people around you, and trust your instincts. If something feels wrong, it probably is.'
+    },
+    {
+      type: 'tip',
+      body: 'Keep your phone charged and accessible at all times. Enable location sharing with your guardians through SafeSphere.'
+    },
+    {
+      type: 'text',
+      title: 'Choose Safe Routes',
+      body: 'Stick to well-lit, populated areas. Avoid shortcuts through unfamiliar or isolated areas. Use the SafeSphere Live Map to find safe places nearby like police stations, hospitals, and 24/7 stores.'
+    },
+    {
+      type: 'text',
+      title: 'Let Someone Know',
+      body: 'Always tell someone where you are going and when you expect to arrive. Use the SafeSphere journey tracker to share your real-time location with guardians.'
+    },
+    {
+      type: 'warning',
+      body: 'If you feel you are being followed, do not go home. Head to a public place or call emergency services immediately.'
+    },
+  ],
+  quiz: [
+    {
+      question: 'What should you do if you feel someone is following you?',
+      options: [
+        'Run home as fast as you can',
+        'Head to a public place or call emergency services',
+        'Ignore it and keep walking',
+        'Confront the person directly'
+      ],
+      correct: 1
+    },
+    {
+      question: 'Which of these is NOT a recommended safety practice?',
+      options: [
+        'Walking in well-lit areas',
+        'Sharing your location with guardians',
+        'Wearing noise-canceling headphones at night',
+        'Staying aware of your surroundings'
+      ],
+      correct: 2
+    }
+  ]
+};
 
 export default function LessonView() {
   const { lessonId } = useParams();
   const navigate = useNavigate();
-  const userId = useAppStore(state => state.userId) || '550e8400-e29b-41d4-a716-446655440000';
-
   const [lesson, setLesson] = useState(null);
-  const [quiz, setQuiz] = useState(null);
-  const [answers, setAnswers] = useState({});
-  const [quizResult, setQuizResult] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-
-  const contentRef = useRef(null);
+  const [completed, setCompleted] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [showQuiz, setShowQuiz] = useState(false);
+  const [quizAnswers, setQuizAnswers] = useState({});
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [quizScore, setQuizScore] = useState(0);
 
   useEffect(() => {
     fetchLesson();
-    fetchQuiz();
-  }, [lessonId]);
-
-  // Scroll listener for progress
-  useEffect(() => {
-    const handleScroll = () => {
-      if (!contentRef.current) return;
-      const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
-      const progress = Math.min(100, Math.round((scrollTop / (scrollHeight - clientHeight)) * 100));
-      
-      // Post progress if it passes certain thresholds (debouncing in real app)
-      if (progress > 10 && progress % 20 === 0) {
-        axios.post('http://localhost:3000/api/learning/progress', {
-          userId,
-          lessonId,
-          progress
-        }).catch(err => console.error(err));
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
   }, [lessonId]);
 
   const fetchLesson = async () => {
     try {
-      const res = await axios.get(`http://localhost:3000/api/learning/lesson/${lessonId}`);
-      setLesson(res.data.lesson);
-    } catch (err) {
-      console.error('Error fetching lesson:', err);
+      const { data } = await api.get(`/api/learning/${lessonId}`);
+      setLesson(data.lesson || data);
+    } catch {
+      setLesson(fallbackLesson);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchQuiz = async () => {
+  const handleComplete = async () => {
     try {
-      const res = await axios.get(`http://localhost:3000/api/learning/quiz/${lessonId}`);
-      if (res.data.quiz) {
-        setQuiz(res.data.quiz);
-      }
-    } catch (err) {
-      // 404 means no quiz, which is fine
-      if (err.response?.status !== 404) {
-        console.error('Error fetching quiz:', err);
-      }
+      await api.post(`/api/learning/${lessonId}/complete`);
+    } catch {}
+    setCompleted(true);
+  };
+
+  const handleQuizAnswer = (questionIndex, answerIndex) => {
+    if (quizSubmitted) return;
+    setQuizAnswers(prev => ({ ...prev, [questionIndex]: answerIndex }));
+  };
+
+  const submitQuiz = () => {
+    let score = 0;
+    lesson.quiz.forEach((q, i) => {
+      if (quizAnswers[i] === q.correct) score++;
+    });
+    setQuizScore(score);
+    setQuizSubmitted(true);
+    if (score === lesson.quiz.length) {
+      handleComplete();
     }
   };
 
-  const handleOptionSelect = (questionId, option) => {
-    setAnswers(prev => ({
-      ...prev,
-      [questionId]: option
-    }));
-  };
+  const content = lesson?.content || [];
+  const totalSteps = content.length + (lesson?.quiz ? 1 : 0);
 
-  const handleSubmitQuiz = async () => {
-    if (!quiz) return;
-    
-    const formattedAnswers = Object.keys(answers).map(qId => ({
-      questionId: qId,
-      selectedOption: answers[qId]
-    }));
-
-    if (formattedAnswers.length !== quiz.questions.length) {
-      alert("Please answer all questions before submitting.");
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      const res = await axios.post('http://localhost:3000/api/learning/quiz/submit', {
-        userId,
-        lessonId,
-        quizId: quiz.id,
-        answers: formattedAnswers
-      });
-
-      setQuizResult(res.data);
-      
-      // Auto complete lesson if passed
-      if (res.data.passed) {
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-      }
-
-    } catch (err) {
-      console.error('Error submitting quiz:', err);
-      alert('Failed to submit quiz. Please try again.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  if (loading || !lesson) {
-    return <div className="p-8 text-center text-navy-600">Loading lesson...</div>;
+  if (loading) {
+    return (
+      <div className="max-w-3xl mx-auto space-y-4">
+        <div className="h-8 bg-surface-soft rounded w-48 animate-pulse" />
+        <div className="card-cream p-8 animate-pulse">
+          <div className="h-6 bg-surface-soft rounded w-3/4 mb-4" />
+          <div className="h-4 bg-surface-soft rounded w-full mb-2" />
+          <div className="h-4 bg-surface-soft rounded w-5/6" />
+        </div>
+      </div>
+    );
   }
 
+  if (!lesson) return null;
+
   return (
-    <div className="pb-24 max-w-3xl mx-auto min-h-screen bg-navy-900">
-      {/* Navbar */}
-      <div className="sticky top-0 z-50 bg-navy-900/80 backdrop-blur-md border-b border-gray-800 p-4 flex items-center">
-        <button 
-          onClick={() => navigate('/user/learn')}
-          className="p-2 bg-navy-800 rounded-full hover:bg-navy-700 transition-colors"
-        >
-          <ArrowLeft size={20} className="text-white" />
-        </button>
-        <div className="ml-4 flex-1">
-          <span className="text-xs text-royal-500 font-bold uppercase tracking-wider">{lesson.learning_categories?.title}</span>
-          <h1 className="text-lg font-bold text-white truncate">{lesson.title}</h1>
+    <div className="max-w-3xl mx-auto space-y-6">
+      {/* Back */}
+      <button
+        onClick={() => navigate('/user/learning-hub')}
+        className="flex items-center gap-2 text-body-sm text-muted hover:text-ink transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Back to Learning Hub
+      </button>
+
+      {/* Header */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <span className="badge-pill">{lesson.category}</span>
+          <span className="badge-pill bg-surface-soft">{lesson.difficulty || 'Beginner'}</span>
+          <span className="flex items-center gap-1 text-caption text-muted-soft">
+            <Clock className="w-3 h-3" /> {lesson.duration} min
+          </span>
+          {lesson.rating && (
+            <span className="flex items-center gap-1 text-caption text-muted-soft">
+              <Star className="w-3 h-3 text-accent-amber" /> {lesson.rating}
+            </span>
+          )}
         </div>
+        <h1 className="font-display text-display-sm text-ink" style={{ letterSpacing: '-0.02em' }}>
+          {lesson.title}
+        </h1>
       </div>
 
-      <div className="p-6 space-y-8" ref={contentRef}>
-        
-        {/* Header Banner */}
-        <div className="bg-navy-800 rounded-3xl p-8 border border-navy-700 text-center relative overflow-hidden">
-          <div className="absolute inset-0 opacity-10 bg-gradient-to-br from-blue-500 to-purple-600"></div>
-          <div className="text-5xl mb-4 relative z-10">{lesson.learning_categories?.icon || '📖'}</div>
-          <h1 className="text-3xl font-bold text-white mb-2 relative z-10">{lesson.title}</h1>
-          <p className="text-navy-600 relative z-10">{lesson.description}</p>
-        </div>
+      {/* Progress bar */}
+      <div className="w-full h-2 bg-surface-soft rounded-full overflow-hidden">
+        <motion.div
+          animate={{ width: `${((currentStep + 1) / totalSteps) * 100}%` }}
+          className="h-full bg-primary rounded-full"
+        />
+      </div>
 
-        {/* Content */}
-        <div className="prose prose-invert prose-blue max-w-none">
-          {/* Mock Markdown Rendering - in real app use react-markdown */}
-          <div dangerouslySetInnerHTML={{ __html: lesson.content || '<p>Loading content...</p>' }} className="text-gray-300 leading-relaxed text-lg" />
-        </div>
-
-        {/* Quiz Section */}
-        {quiz && !quizResult && (
-          <div className="bg-navy-800 border border-navy-700 rounded-3xl p-6 mt-12 shadow-lg">
-            <div className="flex items-center space-x-3 mb-6">
-              <Award className="text-yellow-500" size={28} />
-              <h2 className="text-2xl font-bold text-white">Knowledge Check</h2>
-            </div>
-            
-            <div className="space-y-8">
-              {quiz.questions.map((q, index) => (
-                <div key={q.id} className="space-y-3">
-                  <h3 className="text-lg font-medium text-white">{index + 1}. {q.question}</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {['A', 'B', 'C', 'D'].map(optLetter => {
-                      const optText = q[`option_${optLetter.toLowerCase()}`];
-                      const isSelected = answers[q.id] === optLetter;
-                      return (
-                        <button
-                          key={optLetter}
-                          onClick={() => handleOptionSelect(q.id, optLetter)}
-                          className={`p-4 rounded-xl text-left transition-all border ${
-                            isSelected 
-                              ? 'bg-royal-500/20 border-royal-500 text-white ring-2 ring-blue-500/30' 
-                              : 'bg-navy-900 border-navy-700 text-gray-300 hover:bg-gray-750'
-                          }`}
-                        >
-                          <span className="font-bold mr-2 text-gray-500">{optLetter}.</span> {optText}
-                        </button>
-                      );
-                    })}
+      {/* Content */}
+      {!showQuiz ? (
+        <div className="space-y-4">
+          {content.map((block, i) => {
+            if (i !== currentStep) return null;
+            return (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+              >
+                {block.type === 'intro' && (
+                  <div className="card-dark rounded-xl p-6">
+                    <BookOpen className="w-8 h-8 text-primary mb-3" />
+                    <p className="text-body leading-relaxed text-on-dark">{block.body}</p>
                   </div>
-                </div>
-              ))}
-            </div>
-
-            <button
-              onClick={handleSubmitQuiz}
-              disabled={submitting}
-              className="w-full mt-8 bg-royal-500 hover:bg-royal-600 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50"
-            >
-              {submitting ? 'Submitting...' : 'Submit Answers'}
-            </button>
-          </div>
-        )}
-
-        {/* Quiz Result */}
-        {quizResult && (
-          <div className={`rounded-3xl p-8 border text-center animate-in zoom-in duration-300 ${
-            quizResult.passed 
-              ? 'bg-green-900/20 border-green-500/50' 
-              : 'bg-red-900/20 border-gold-500/50'
-          }`}>
-            <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-4 ${
-              quizResult.passed ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-            }`}>
-              {quizResult.passed ? <CheckCircle2 size={40} /> : <div className="text-4xl">!</div>}
-            </div>
-            
-            <h2 className="text-2xl font-bold text-white mb-2">
-              {quizResult.passed ? 'Congratulations!' : 'Keep trying!'}
-            </h2>
-            <p className="text-gray-300 mb-6">
-              You scored <span className="font-bold text-white text-xl">{quizResult.score}%</span>. 
-              {quizResult.passed ? ' You passed the knowledge check.' : ` You need ${quiz.passing_marks}% to pass.`}
+                )}
+                {block.type === 'text' && (
+                  <div className="card-cream p-6">
+                    {block.title && (
+                      <h3 className="text-title-md text-ink mb-3">{block.title}</h3>
+                    )}
+                    <p className="text-body leading-relaxed text-ink">{block.body}</p>
+                  </div>
+                )}
+                {block.type === 'tip' && (
+                  <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl">
+                    <div className="flex items-start gap-3">
+                      <Lightbulb className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-body-sm font-medium text-ink mb-1">Pro Tip</p>
+                        <p className="text-body-sm leading-relaxed text-ink">{block.body}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {block.type === 'warning' && (
+                  <div className="p-4 bg-accent-amber/5 border border-accent-amber/20 rounded-xl">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="w-5 h-5 text-accent-amber shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-body-sm font-medium text-ink mb-1">Important</p>
+                        <p className="text-body-sm leading-relaxed text-ink">{block.body}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            );
+          })}
+        </div>
+      ) : (
+        /* Quiz Section */
+        <div className="space-y-4">
+          <div className="card-dark rounded-xl p-5">
+            <h3 className="text-title-md text-on-dark font-body font-medium">Knowledge Check</h3>
+            <p className="text-body-sm text-on-dark-soft mt-1">
+              Answer all questions to complete this lesson
             </p>
-
-            {quizResult.passed && quizResult.certificateUrl && (
-              <a 
-                href={quizResult.certificateUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center space-x-2 bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-gray-900 font-bold py-3 px-6 rounded-xl transition-all shadow-lg shadow-yellow-500/20"
-              >
-                <Download size={20} />
-                <span>Download Certificate</span>
-              </a>
-            )}
-
-            {!quizResult.passed && (
-              <button
-                onClick={() => {
-                  setQuizResult(null);
-                  setAnswers({});
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className="bg-navy-700 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-xl transition-all"
-              >
-                Retry Quiz
-              </button>
-            )}
           </div>
-        )}
 
+          {lesson.quiz.map((q, qi) => (
+            <motion.div
+              key={qi}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: qi * 0.1 }}
+              className="card-cream p-5"
+            >
+              <p className="text-body font-medium text-ink mb-4">
+                <span className="text-primary mr-2">{qi + 1}.</span>
+                {q.question}
+              </p>
+              <div className="space-y-2">
+                {q.options.map((opt, oi) => {
+                  const isSelected = quizAnswers[qi] === oi;
+                  const isCorrect = q.correct === oi;
+                  let borderColor = 'border-hairline';
+                  let bgColor = 'bg-canvas';
+                  if (quizSubmitted) {
+                    if (isCorrect) { borderColor = 'border-success'; bgColor = 'bg-success/5'; }
+                    else if (isSelected && !isCorrect) { borderColor = 'border-error'; bgColor = 'bg-error/5'; }
+                  } else if (isSelected) {
+                    borderColor = 'border-primary';
+                    bgColor = 'bg-primary/5';
+                  }
+
+                  return (
+                    <button
+                      key={oi}
+                      onClick={() => handleQuizAnswer(qi, oi)}
+                      disabled={quizSubmitted}
+                      className={`w-full p-3 rounded-lg border-2 ${borderColor} ${bgColor} text-left transition-all ${
+                        !quizSubmitted ? 'hover:border-primary/50 cursor-pointer' : 'cursor-default'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                          isSelected ? 'border-primary bg-primary' : 'border-hairline'
+                        }`}>
+                          {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+                        </div>
+                        <span className="text-body-sm text-ink">{opt}</span>
+                        {quizSubmitted && isCorrect && <CheckCircle className="w-4 h-4 text-success ml-auto" />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </motion.div>
+          ))}
+
+          {quizSubmitted && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className={`card-cream p-6 text-center ${
+                quizScore === lesson.quiz.length ? 'border-2 border-success' : ''
+              }`}
+            >
+              <p className="text-title-md text-ink mb-2">
+                Score: {quizScore}/{lesson.quiz.length}
+              </p>
+              {quizScore === lesson.quiz.length ? (
+                <p className="text-body-sm text-success">Perfect! You passed!</p>
+              ) : (
+                <p className="text-body-sm text-muted">Review the material and try again</p>
+              )}
+            </motion.div>
+          )}
+        </div>
+      )}
+
+      {/* Navigation */}
+      <div className="flex items-center justify-between pt-4">
+        <button
+          onClick={() => {
+            if (showQuiz) { setShowQuiz(false); setCurrentStep(content.length - 1); }
+            else if (currentStep > 0) setCurrentStep(currentStep - 1);
+          }}
+          disabled={!showQuiz && currentStep === 0}
+          className="btn-secondary"
+        >
+          <ChevronLeft className="w-4 h-4 text-muted" />
+          Previous
+        </button>
+
+        <span className="text-caption text-muted-soft">
+          {showQuiz ? 'Quiz' : `${currentStep + 1} of ${content.length}`}
+        </span>
+
+        {!showQuiz ? (
+          <button
+            onClick={() => {
+              if (currentStep < content.length - 1) setCurrentStep(currentStep + 1);
+              else if (lesson.quiz) setShowQuiz(true);
+              else handleComplete();
+            }}
+            className="btn-primary"
+          >
+            {currentStep < content.length - 1 ? 'Next' : lesson.quiz ? 'Take Quiz' : 'Complete'}
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        ) : !quizSubmitted ? (
+          <button
+            onClick={submitQuiz}
+            disabled={Object.keys(quizAnswers).length < lesson.quiz.length}
+            className="btn-primary"
+          >
+            Submit Quiz
+          </button>
+        ) : (
+          <button onClick={() => navigate('/user/learning-hub')} className="btn-primary">
+            Finish
+          </button>
+        )}
       </div>
+
+      {/* Completion */}
+      {(completed || lesson.completed) && !showQuiz && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="card-cream p-5 flex items-center gap-4 border-2 border-success"
+        >
+          <CheckCircle className="w-8 h-8 text-success shrink-0" />
+          <div>
+            <p className="text-body font-medium text-ink">Lesson Completed!</p>
+            <p className="text-body-sm text-muted">Great job completing this lesson</p>
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 }

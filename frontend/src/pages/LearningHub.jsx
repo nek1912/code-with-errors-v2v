@@ -1,205 +1,218 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Award, Medal, Lock, ChevronRight } from 'lucide-react';
-import { useAppStore } from '../store/useAppStore';
+import { motion } from 'framer-motion';
+import {
+  BookOpen, Clock, CheckCircle, Lock, ArrowRight, Search, Star,
+  Shield, Phone, Map, Eye, AlertTriangle, Users
+} from 'lucide-react';
+import api from '../services/api';
+
+const categories = [
+  { id: 'all', label: 'All', icon: BookOpen },
+  { id: 'safety', label: 'Safety Tips', icon: Shield },
+  { id: 'legal', label: 'Legal Rights', icon: Users },
+  { id: 'emergency', label: 'Emergency', icon: AlertTriangle },
+  { id: 'self-defence', label: 'Self-Defence', icon: Eye },
+];
+
+const categoryIcons = {
+  safety: Shield,
+  legal: Users,
+  emergency: AlertTriangle,
+  'self-defence': Eye,
+};
+
+const fallbackLessons = [
+  { id: 1, title: 'Street Safety Awareness', category: 'safety', duration: 5, completed: false, locked: false, difficulty: 'Beginner', rating: 4.8 },
+  { id: 2, title: 'Know Your Legal Rights', category: 'legal', duration: 8, completed: true, locked: false, difficulty: 'Intermediate', rating: 4.6 },
+  { id: 3, title: 'Emergency Contacts Setup', category: 'emergency', duration: 3, completed: false, locked: false, difficulty: 'Beginner', rating: 4.9 },
+  { id: 4, title: 'Basic Self-Defence Moves', category: 'self-defence', duration: 10, completed: false, locked: false, difficulty: 'Intermediate', rating: 4.7 },
+  { id: 5, title: 'Public Transport Safety', category: 'safety', duration: 6, completed: false, locked: false, difficulty: 'Beginner', rating: 4.5 },
+  { id: 6, title: 'Digital Safety & Privacy', category: 'safety', duration: 7, completed: false, locked: true, difficulty: 'Advanced', rating: 4.4 },
+  { id: 7, title: 'Night Travel Precautions', category: 'safety', duration: 5, completed: false, locked: false, difficulty: 'Beginner', rating: 4.8 },
+  { id: 8, title: 'First Aid Basics', category: 'emergency', duration: 12, completed: false, locked: true, difficulty: 'Intermediate', rating: 4.9 },
+];
 
 export default function LearningHub() {
-  const navigate = useNavigate();
-  const userId = useAppStore(state => state.userId) || '550e8400-e29b-41d4-a716-446655440000';
-  
-  const [stats, setStats] = useState({ progress: 0, completedLessons: 0, certificates: 0 });
-  const [allBadges, setAllBadges] = useState([]);
-  const [earnedBadges, setEarnedBadges] = useState([]);
-  const [categories, setCategories] = useState([]);
   const [lessons, setLessons] = useState([]);
-  const [activeCategory, setActiveCategory] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const navigate = useNavigate();
 
   useEffect(() => {
-    // Initial fetch
-    fetchDashboardData();
-    fetchCategories();
-    fetchLessons(null);
+    fetchLessons();
   }, []);
 
-  const fetchDashboardData = async () => {
+  const fetchLessons = async () => {
     try {
-      const res = await axios.get(`http://localhost:3000/api/learning/dashboard?userId=${userId}`);
-      setStats(res.data.stats);
-      setAllBadges(res.data.allBadges);
-      setEarnedBadges(res.data.earnedBadges);
-    } catch (err) {
-      console.error('Error fetching dashboard:', err);
-    }
-  };
-
-  const fetchCategories = async () => {
-    try {
-      const res = await axios.get('http://localhost:3000/api/learning/categories');
-      setCategories(res.data.categories);
-    } catch (err) {
-      console.error('Error fetching categories:', err);
-    }
-  };
-
-  const fetchLessons = async (categoryId) => {
-    try {
-      const url = categoryId 
-        ? `http://localhost:3000/api/learning/lessons?categoryId=${categoryId}` 
-        : `http://localhost:3000/api/learning/lessons`;
-      const res = await axios.get(url);
-      setLessons(res.data.lessons);
-    } catch (err) {
-      console.error('Error fetching lessons:', err);
+      const { data } = await api.get('/api/learning');
+      setLessons(data.lessons || data);
+    } catch {
+      setLessons(fallbackLessons);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCategoryClick = (categoryId) => {
-    if (activeCategory === categoryId) {
-      setActiveCategory(null);
-      fetchLessons(null);
-    } else {
-      setActiveCategory(categoryId);
-      fetchLessons(categoryId);
-    }
-  };
+  const filtered = lessons.filter(l => {
+    const matchCategory = selectedCategory === 'all' || l.category === selectedCategory;
+    const matchSearch = l.title.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchCategory && matchSearch;
+  });
 
-  const isBadgeEarned = (badgeId) => {
-    return earnedBadges.some(b => b.id === badgeId);
-  };
-
-  const getBadgeGradient = (name) => {
-    if (name.includes('Bronze')) return 'from-yellow-700 to-yellow-900';
-    if (name.includes('Silver')) return 'from-gray-300 to-gray-500 text-gray-900';
-    if (name.includes('Gold')) return 'from-yellow-300 to-yellow-500 text-gray-900';
-    return 'from-purple-500 to-indigo-600';
-  };
-
-  if (loading) {
-    return <div className="p-8 text-center text-navy-600">Loading Learning Hub...</div>;
-  }
+  const completedCount = lessons.filter(l => l.completed).length;
+  const progressPercent = lessons.length > 0 ? Math.round((completedCount / lessons.length) * 100) : 0;
 
   return (
-    <div className="h-full w-full overflow-y-auto custom-scrollbar pb-24">
-      <div className="max-w-4xl mx-auto p-4 space-y-8 animate-in fade-in">
-        
-        {/* Header */}
-        <div className="bg-navy-800 rounded-3xl p-6 border border-navy-700 shadow-xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-blob"></div>
-          <div className="absolute top-0 right-32 w-64 h-64 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-blob animation-delay-2000"></div>
-          
-          <h1 className="text-3xl font-bold text-white mb-2 relative z-10">Learning Hub</h1>
-          <p className="text-navy-600 relative z-10">Empower yourself with safety knowledge and earn certificates.</p>
-          
-          {/* Stats Row */}
-          <div className="grid grid-cols-3 gap-4 mt-8 relative z-10">
-            <div className="bg-navy-900/50 rounded-2xl p-4 border border-navy-700/50 backdrop-blur-sm">
-              <div className="flex items-center space-x-2 text-royal-500 mb-2">
-                <BookOpen size={20} />
-                <span className="font-semibold text-sm">Progress</span>
-              </div>
-              <span className="text-3xl font-bold text-white">{stats.progress}%</span>
-            </div>
-            <div className="bg-navy-900/50 rounded-2xl p-4 border border-navy-700/50 backdrop-blur-sm">
-              <div className="flex items-center space-x-2 text-purple-400 mb-2">
-                <Award size={20} />
-                <span className="font-semibold text-sm">Certificates</span>
-              </div>
-              <span className="text-3xl font-bold text-white">{stats.certificates}</span>
-            </div>
-            <div className="bg-navy-900/50 rounded-2xl p-4 border border-navy-700/50 backdrop-blur-sm">
-              <div className="flex items-center space-x-2 text-yellow-400 mb-2">
-                <Medal size={20} />
-                <span className="font-semibold text-sm">Badges</span>
-              </div>
-              <span className="text-3xl font-bold text-white">{earnedBadges.length}/{allBadges.length}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Badges Showcase */}
-        <div>
-          <h2 className="text-xl font-semibold text-white mb-4">Your Badges</h2>
-          <div className="flex space-x-4 overflow-x-auto pb-4 snap-x">
-            {allBadges.map((badge) => {
-              const earned = isBadgeEarned(badge.id);
-              return (
-                <div 
-                  key={badge.id}
-                  className={`snap-center shrink-0 w-24 h-24 rounded-full flex flex-col items-center justify-center relative shadow-lg
-                    ${earned ? `bg-gradient-to-br ${getBadgeGradient(badge.name)}` : 'bg-navy-800 border-2 border-navy-700'}`}
-                >
-                  {!earned && (
-                    <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center">
-                      <Lock size={24} className="text-gray-500" />
-                    </div>
-                  )}
-                  {earned && <Medal size={32} className={badge.name.includes('Silver') || badge.name.includes('Gold') ? 'text-gray-900' : 'text-white'} />}
-                  {!earned && <span className="text-[10px] text-gray-500 mt-6 text-center leading-tight px-2">{badge.name}</span>}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Categories Grid */}
-        <div>
-          <h2 className="text-xl font-semibold text-white mb-4">Categories</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => handleCategoryClick(cat.id)}
-                className={`p-4 rounded-2xl text-left transition-all duration-200 border
-                  ${activeCategory === cat.id 
-                    ? 'bg-royal-500/20 border-royal-500 ring-2 ring-blue-500/50' 
-                    : 'bg-navy-800 border-navy-700 hover:bg-gray-750 hover:border-gray-600'}`}
-              >
-                <div className="text-2xl mb-2">{cat.icon || '📚'}</div>
-                <h3 className="font-semibold text-white">{cat.title}</h3>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Lessons List */}
-        <div>
-          <h2 className="text-xl font-semibold text-white mb-4">Available Lessons</h2>
-          <div className="space-y-4">
-            {lessons.length === 0 ? (
-              <div className="text-gray-500 text-center py-8">No lessons found.</div>
-            ) : (
-              lessons.map((lesson) => (
-                <div 
-                  key={lesson.id} 
-                  onClick={() => navigate(`/user/learn/${lesson.id}`)}
-                  className="bg-navy-800 border border-navy-700 rounded-2xl p-4 flex items-center justify-between cursor-pointer hover:bg-gray-750 transition-colors group"
-                >
-                  <div className="flex items-center space-x-4">
-                    <div className="w-16 h-16 bg-navy-700 rounded-xl flex items-center justify-center text-2xl shrink-0">
-                      {lesson.learning_categories?.icon || '📖'}
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-white group-hover:text-royal-500 transition-colors">{lesson.title}</h3>
-                      <div className="flex items-center space-x-3 text-xs text-navy-600 mt-1">
-                        <span className="bg-navy-700 px-2 py-1 rounded-md">{lesson.difficulty}</span>
-                        <span>{lesson.duration} mins</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="w-10 h-10 rounded-full bg-navy-700 flex items-center justify-center text-navy-600 group-hover:bg-royal-500 group-hover:text-white transition-all">
-                    <ChevronRight size={20} />
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-        
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="font-display text-display-md text-ink" style={{ letterSpacing: '-0.02em' }}>
+          Learning Hub
+        </h1>
+        <p className="text-body text-muted mt-1">Build your knowledge, protect yourself</p>
       </div>
+
+      {/* Progress Card */}
+      <div className="card-dark rounded-xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <p className="text-on-dark text-title-md font-body font-medium">Your Progress</p>
+            <p className="text-on-dark-soft text-body-sm mt-0.5">
+              {completedCount} of {lessons.length} lessons completed
+            </p>
+          </div>
+          <div className="w-14 h-14 rounded-full border-3 border-primary flex items-center justify-center" style={{ borderWidth: '3px' }}>
+            <span className="text-title-md font-body font-medium text-primary">{progressPercent}%</span>
+          </div>
+        </div>
+        <div className="w-full h-2 bg-surface-dark-elevated rounded-full overflow-hidden">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${progressPercent}%` }}
+            transition={{ duration: 1, delay: 0.3 }}
+            className="h-full bg-primary rounded-full"
+          />
+        </div>
+        {/* Achievements */}
+        <div className="flex gap-4 mt-4 pt-4 border-t border-white/10">
+          {[
+            { label: 'Streak', value: '3 days', icon: '🔥' },
+            { label: 'Points', value: '250', icon: '⭐' },
+            { label: 'Rank', value: '#42', icon: '🏆' },
+          ].map((item, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <span className="text-lg">{item.icon}</span>
+              <div>
+                <p className="text-caption text-on-dark-soft">{item.label}</p>
+                <p className="text-body-sm font-medium text-on-dark">{item.value}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-soft" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search lessons..."
+          className="input-field"
+          style={{ paddingLeft: '2.5rem' }}
+        />
+      </div>
+
+      {/* Category Tabs */}
+      <div className="flex bg-surface-soft border border-hairline rounded-lg p-1 overflow-x-auto gap-1">
+        {categories.map(cat => {
+          const Icon = cat.icon;
+          return (
+            <button
+              key={cat.id}
+              onClick={() => setSelectedCategory(cat.id)}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-button font-medium whitespace-nowrap transition-all ${
+                selectedCategory === cat.id
+                  ? 'bg-canvas text-ink shadow-hairline border border-hairline'
+                  : 'text-muted hover:text-body'
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {cat.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Lessons Grid */}
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {[1,2,3,4].map(i => (
+            <div key={i} className="card-cream p-5 animate-pulse">
+              <div className="h-4 bg-surface-soft rounded w-1/3 mb-3" />
+              <div className="h-5 bg-surface-soft rounded w-3/4 mb-2" />
+              <div className="h-4 bg-surface-soft rounded w-1/2" />
+            </div>
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="card-cream p-12 text-center">
+          <BookOpen className="w-10 h-10 text-muted-soft mx-auto mb-3" />
+          <p className="text-body text-muted">No lessons found</p>
+          <p className="text-body-sm text-muted-soft mt-1">Try a different search or category</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {filtered.map((lesson, i) => {
+            const CatIcon = categoryIcons[lesson.category] || BookOpen;
+            return (
+              <motion.button
+                key={lesson.id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+                onClick={() => !lesson.locked && navigate(`/user/learning/${lesson.id}`)}
+                disabled={lesson.locked}
+                className={`card-cream p-5 text-left transition-all ${
+                  lesson.locked
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'hover:shadow-md cursor-pointer group'
+                }`}
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <CatIcon className="w-4 h-4 text-primary" />
+                    </div>
+                    <span className="badge-pill text-caption">{lesson.difficulty || lesson.category}</span>
+                  </div>
+                  {lesson.completed ? (
+                    <CheckCircle className="w-5 h-5 text-success" />
+                  ) : lesson.locked ? (
+                    <Lock className="w-5 h-5 text-muted-soft" />
+                  ) : (
+                    <ArrowRight className="w-4 h-4 text-muted-soft group-hover:text-primary transition-colors" />
+                  )}
+                </div>
+                <h3 className="text-body font-medium text-ink mb-2">{lesson.title}</h3>
+                <div className="flex items-center gap-4">
+                  <span className="flex items-center gap-1 text-caption text-muted-soft">
+                    <Clock className="w-3 h-3" /> {lesson.duration} min
+                  </span>
+                  {lesson.rating && (
+                    <span className="flex items-center gap-1 text-caption text-muted-soft">
+                      <Star className="w-3 h-3 text-accent-amber" /> {lesson.rating}
+                    </span>
+                  )}
+                </div>
+              </motion.button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

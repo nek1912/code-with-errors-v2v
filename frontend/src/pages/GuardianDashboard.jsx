@@ -1,5 +1,10 @@
-import React, { useEffect } from 'react';
-import LiveMap from '../components/LiveMap';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import {
+  Users, MapPin, Clock, AlertTriangle, Shield, Eye, Bell, UserPlus,
+  ArrowRight, Phone, ChevronRight
+} from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { useSupabaseRealtime } from '../hooks/useSupabaseRealtime';
 
@@ -85,6 +90,10 @@ export default function GuardianDashboard() {
           <h1 className="text-2xl font-bold">Tracking Ward</h1>
           <p className="text-gray-400 text-sm">Active Journey ID: {activeJourneyId || 'None'} • {wardEmail}</p>
         </div>
+        <button onClick={() => navigate('/guardian/invite')} className="btn-primary btn-sm">
+          <UserPlus className="w-4 h-4" />
+          Invite User
+        </button>
       </div>
 
       {/* RIGHT PANEL: Vitals (col-3) */}
@@ -151,6 +160,7 @@ export default function GuardianDashboard() {
             </div>
           </div>
         </div>
+      )}
 
         {/* Live Timeline */}
         <div className="flex-1 overflow-y-auto p-6">
@@ -164,11 +174,34 @@ export default function GuardianDashboard() {
                     <div className="font-bold text-white text-sm">{evt.title}</div>
                     <time className="text-xs text-indigo-400">{evt.time}</time>
                   </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-body font-medium text-ink">{u.name}</p>
+                      <span className={`badge-pill ${u.status === 'safe' ? 'bg-success/10 text-success' : 'bg-accent-amber/10 text-accent-amber'}`}>
+                        {u.status}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1">
+                      <span className="text-caption text-muted-soft flex items-center gap-1">
+                        <MapPin className="w-3 h-3" /> {u.location}
+                      </span>
+                      <span className="text-caption text-muted-soft flex items-center gap-1">
+                        <Clock className="w-3 h-3" /> {u.lastSeen}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className={`text-title-md font-body font-medium ${
+                      u.safetyScore >= 80 ? 'text-success' : 'text-accent-amber'
+                    }`}>{u.safetyScore}</p>
+                    <p className="text-caption text-muted-soft">Safety Score</p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-soft group-hover:text-primary transition-colors" />
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

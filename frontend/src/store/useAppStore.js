@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { authService } from '../services/auth';
 
 export const useAppStore = create((set) => ({
   // User State
@@ -27,25 +28,29 @@ export const useAppStore = create((set) => ({
     { id: 2, type: 'CROWD', severity: 'MEDIUM', title: 'Festival Nearby', message: 'Heavy crowds reported near Main St.', recommendation: 'Stay aware of surroundings' }
   ],
   aiSummary: "Your route looks mostly clear, but there are some minor crowds ahead. Stay aware.",
+  notifications: [],
+  emergencyContacts: [
+    { id: 1, name: 'Police', number: '100', type: 'emergency' },
+    { id: 2, name: 'Women Helpline', number: '1091', type: 'emergency' },
+    { id: 3, name: 'Ambulance', number: '108', type: 'emergency' },
+  ],
 
   // Actions
   setCurrentLocation: (loc) => set({ currentLocation: loc }),
   setActiveJourney: (id) => set({ activeJourneyId: id }),
   triggerEmergency: () => set({ isEmergencyActive: true }),
-  updateChecklist: (key) => set((state) => ({ 
-    emergencyChecklist: { ...state.emergencyChecklist, [key]: true } 
+  updateChecklist: (key) => set((state) => ({
+    emergencyChecklist: { ...state.emergencyChecklist, [key]: true }
   })),
-  resetEmergency: () => set({ 
-    isEmergencyActive: false, 
-    emergencyChecklist: { 
-      guardianNotified: false, 
-      audioStarted: false, 
-      locationShared: false, 
-      safePlaceFound: false 
-    } 
+  resetEmergency: () => set({
+    isEmergencyActive: false,
+    emergencyChecklist: {
+      guardianNotified: false,
+      audioStarted: false,
+      locationShared: false,
+      safePlaceFound: false
+    }
   }),
-
-  // New Actions for Guardian & Alerts
   addTimelineEvent: (event) => set((state) => ({
     guardianTimeline: [...state.guardianTimeline, event]
   })),
@@ -53,5 +58,33 @@ export const useAppStore = create((set) => ({
   addAlert: (alert) => set((state) => ({
     activeAlerts: [alert, ...state.activeAlerts]
   })),
-  setAiSummary: (summary) => set({ aiSummary: summary })
+  setAiSummary: (summary) => set({ aiSummary: summary }),
+  addNotification: (notification) => set((state) => ({
+    notifications: [notification, ...state.notifications]
+  })),
+  clearNotifications: () => set({ notifications: [] }),
+  addEmergencyContact: (contact) => set((state) => ({
+    emergencyContacts: [...state.emergencyContacts, contact]
+  })),
+  removeEmergencyContact: (id) => set((state) => ({
+    emergencyContacts: state.emergencyContacts.filter(c => c.id !== id)
+  })),
+  logout: async () => {
+    await authService.logout();
+    set({
+      user: null,
+      session: null,
+      activeJourneyId: null,
+      isEmergencyActive: false,
+      emergencyChecklist: {
+        guardianNotified: false,
+        audioStarted: false,
+        locationShared: false,
+        safePlaceFound: false
+      },
+      guardianTimeline: [],
+      guardianEmergencyState: null,
+      notifications: [],
+    });
+  },
 }));

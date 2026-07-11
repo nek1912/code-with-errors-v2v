@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import axios from 'axios';
-import { useAppStore } from '../store/useAppStore';
-import { useSupabaseRealtime } from '../hooks/useSupabaseRealtime';
+import React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, AlertTriangle, MapPin, Bell, Clock } from 'lucide-react';
+import { useEmergencyStore } from '../store/useEmergencyStore';
 
 export default function SmartAlertsSheet() {
   const { activeAlerts, aiSummary, addAlert, activeJourneyId } = useAppStore();
@@ -77,15 +77,21 @@ export default function SmartAlertsSheet() {
                 <span className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Action: </span>
                 <span className="text-[10px] text-indigo-300 font-semibold">{alert.recommendation}</span>
               </div>
+              <button
+                onClick={() => onOpenChange(false)}
+                className="p-2 text-muted-soft hover:text-muted hover:bg-surface-soft rounded-lg transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
           ))}
           {activeAlerts.length === 0 && (
             <div className="text-center p-4">
               <p className="text-gray-400 text-sm">No active alerts on your route.</p>
             </div>
-          )}
-        </div>
-      </div>
-    </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
   );
 }
