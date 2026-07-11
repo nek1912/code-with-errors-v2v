@@ -66,23 +66,11 @@ const MapUpdater = ({ center }) => {
   return null;
 };
 
-export default function LiveMap() {
-  const currentLocation = useAppStore(state => state.currentLocation);
-  const setCurrentLocation = useAppStore(state => state.setCurrentLocation);
-  const activeJourneyId = useAppStore(state => state.activeJourneyId);
-  const setActiveJourney = useAppStore(state => state.setActiveJourney);
-
-  const [destination, setDestination] = useState(null);
-  const [route, setRoute] = useState([]);
-  const [safePlaces, setSafePlaces] = useState([]);
-  const [showFilters, setShowFilters] = useState(false);
-  const [isTracking, setIsTracking] = useState(false);
-  const [journeyTime, setJourneyTime] = useState(0);
-  const [journeyDistance, setJourneyDistance] = useState(0);
-  const [battery, setBattery] = useState(null);
-  const [speed, setSpeed] = useState(0);
-  const [lastPosition, setLastPosition] = useState(null);
-
+export default function LiveMap({ userLocation, destinationLocation, polyline, isGuardianView }) {
+  const defaultCenter = userLocation || { lat: 22.307, lng: 73.181 };
+  const [apiSafePlaces, setApiSafePlaces] = useState([]);
+  
+  // Filter UI State
   const [filters, setFilters] = useState({
     police: true, hospital: true, pharmacy: true,
     petrol_pump: true, metro_station: true
@@ -216,132 +204,22 @@ export default function LiveMap() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className="btn-secondary btn-sm"
+            className="bg-gray-900/90 backdrop-blur text-white px-4 py-2 rounded-xl border border-gray-700 shadow-xl font-bold flex items-center space-x-2 transition-transform hover:scale-105"
           >
             <Filter className="w-4 h-4 text-muted" />
             Filters
           </button>
-        </div>
-      </div>
-
-      {/* Journey Stats Bar */}
-      {isTracking && (
-        <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="card-dark rounded-xl p-4"
-        >
-          <div className="grid grid-cols-4 gap-4">
-            <div className="text-center">
-              <Clock className="w-4 h-4 text-primary mx-auto mb-1" />
-              <p className="text-title-md font-body font-medium text-on-dark">{formatTime(journeyTime)}</p>
-              <p className="text-caption text-on-dark-soft">Duration</p>
-            </div>
-            <div className="text-center">
-              <Navigation className="w-4 h-4 text-accent-teal mx-auto mb-1" />
-              <p className="text-title-md font-body font-medium text-on-dark">{journeyDistance.toFixed(1)} km</p>
-              <p className="text-caption text-on-dark-soft">Distance</p>
-            </div>
-            <div className="text-center">
-              <Signal className="w-4 h-4 text-accent-amber mx-auto mb-1" />
-              <p className="text-title-md font-body font-medium text-on-dark">{speed} km/h</p>
-              <p className="text-caption text-on-dark-soft">Speed</p>
-            </div>
-            <div className="text-center">
-              <Battery className="w-4 h-4 text-success mx-auto mb-1" />
-              <p className="text-title-md font-body font-medium text-on-dark">{battery || '--'}%</p>
-              <p className="text-caption text-on-dark-soft">Battery</p>
-            </div>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Map Container */}
-      <div className="flex-1 rounded-xl overflow-hidden border border-hairline relative">
-        <MapContainer
-          center={[currentLocation.lat, currentLocation.lng]}
-          zoom={15}
-          zoomControl={false}
-          className="w-full h-full"
-        >
-          <TileLayer
-            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-            attribution='&copy; <a href="https://carto.com/">CARTO</a>'
-          />
-          <ZoomControl position="bottomright" />
-          <MapUpdater center={currentLocation} />
-
-          {currentLocation && (
-            <Marker position={[currentLocation.lat, currentLocation.lng]} icon={userIcon} />
-          )}
-
-          {destination && (
-            <Marker position={[destination.lat, destination.lng]} icon={destinationIcon} />
-          )}
-
-          {route.length > 0 && (
-            <Polyline
-              positions={route}
-              pathOptions={{ color: '#cc785c', weight: 4, opacity: 0.8, dashArray: '10, 10' }}
-            />
-          )}
-
-          {filteredPlaces.map((place, i) => (
-            <Marker
-              key={place.id || i}
-              position={[place.lat, place.lng]}
-              icon={L.divIcon({
-                className: '',
-                html: `<div style="
-                  font-size: 18px;
-                  background: ${place.is247 ? '#5db872' : '#5db8a6'};
-                  border-radius: 50%;
-                  width: 36px; height: 36px;
-                  display: flex; align-items: center; justify-content: center;
-                  border: 2px solid white;
-                  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-                ">${getIconForType(place.type)}</div>`,
-                iconSize: [36, 36],
-                iconAnchor: [18, 18]
-              })}
-            >
-              <Popup>
-                <div className="p-1 min-w-[140px]">
-                  <p className="font-bold text-sm m-0">{place.name}</p>
-                  <p className="text-xs text-gray-500 m-0 mt-1">{place.type.replace(/_/g, ' ')}</p>
-                  <p className="text-xs text-gray-400 m-0 mt-1">{place.distance}m away</p>
-                  {place.is247 && (
-                    <span className="inline-block mt-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded font-medium">
-                      24/7
-                    </span>
-                  )}
-                </div>
-              </Popup>
-            </Marker>
-          ))}
-        </MapContainer>
-
-        {/* Filters Panel */}
-        {showFilters && (
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="absolute top-4 right-4 z-[1000] card-cream p-4 rounded-xl shadow-lg w-52"
-          >
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-body-sm font-medium text-ink">Filters</h4>
-              <button onClick={() => setShowFilters(false)} className="text-muted-soft hover:text-ink">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="space-y-2">
+          
+          {showFilters && (
+            <div className="mt-2 bg-gray-900/95 backdrop-blur-md border border-gray-700 p-4 rounded-xl shadow-2xl w-56 flex flex-col space-y-2">
+              <h4 className="text-white text-sm font-bold mb-2">Show on Map</h4>
               {Object.keys(filters).map(key => (
                 <label key={key} className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={filters[key]}
-                    onChange={() => setFilters(f => ({ ...f, [key]: !f[key] }))}
-                    className="w-4 h-4 rounded border-hairline text-primary accent-primary"
+                    onChange={() => toggleFilter(key)}
+                    className="form-checkbox h-4 w-4 text-blue-500 rounded bg-gray-800 border-gray-600 focus:ring-0 focus:ring-offset-0"
                   />
                   <span className="text-body-sm text-muted capitalize">{key.replace(/_/g, ' ')}</span>
                 </label>
@@ -361,18 +239,9 @@ export default function LiveMap() {
         </div>
       </div>
 
-      {/* Journey Controls */}
-      <div className="flex gap-3">
-        {!isTracking ? (
-          <button onClick={startJourney} className="btn-primary flex-1">
-            <Play className="w-4 h-4" />
-            Start Journey
-          </button>
-        ) : (
-          <button onClick={stopJourney} className="btn-danger flex-1">
-            <Square className="w-4 h-4" />
-            End Journey
-          </button>
+        {/* Route Polyline */}
+        {polyline && polyline.length > 0 && (
+          <Polyline positions={polyline} color="#10b981" weight={4} opacity={0.8} />
         )}
       </div>
     </div>

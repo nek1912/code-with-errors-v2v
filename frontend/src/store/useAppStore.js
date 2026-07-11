@@ -1,11 +1,12 @@
 import { create } from 'zustand';
 import { authService } from '../services/auth';
 
-export const useAppStore = create((set, get) => ({
-  user: null,
-  session: null,
-  currentLocation: { lat: 22.307, lng: 73.181 },
-  activeJourneyId: null,
+export const useAppStore = create((set) => ({
+  // User State
+  currentLocation: { lat: 22.307, lng: 73.181 }, // Default fallback
+  activeJourneyId: 'demo-journey-123',
+  
+  // Emergency State
   isEmergencyActive: false,
   emergencyChecklist: {
     guardianNotified: false,
@@ -13,8 +14,15 @@ export const useAppStore = create((set, get) => ({
     locationShared: false,
     safePlaceFound: false
   },
-  guardianTimeline: [],
-  guardianEmergencyState: null,
+  
+  // Guardian State
+  guardianTimeline: [
+    { id: 1, title: 'Journey Started', time: '10:00 AM' },
+    { id: 2, title: 'Deviated from path', time: '10:15 AM' }
+  ],
+  guardianEmergencyState: null, // Holds session data if emergency
+
+  // Smart Alerts State
   activeAlerts: [
     { id: 1, type: 'WEATHER', severity: 'LOW', title: 'Light Rain Expected', message: 'Carry an umbrella just in case.', recommendation: 'Proceed with caution' },
     { id: 2, type: 'CROWD', severity: 'MEDIUM', title: 'Festival Nearby', message: 'Heavy crowds reported near Main St.', recommendation: 'Stay aware of surroundings' }
@@ -27,8 +35,7 @@ export const useAppStore = create((set, get) => ({
     { id: 3, name: 'Ambulance', number: '108', type: 'emergency' },
   ],
 
-  setUser: (user) => set({ user }),
-  setSession: (session) => set({ session }),
+  // Actions
   setCurrentLocation: (loc) => set({ currentLocation: loc }),
   setActiveJourney: (id) => set({ activeJourneyId: id }),
   triggerEmergency: () => set({ isEmergencyActive: true }),

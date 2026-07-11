@@ -1,312 +1,129 @@
-import React, { useState, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React from 'react';
 import { motion } from 'framer-motion';
-import {
-  ArrowLeft, Video, Mic, Upload, Loader2, CheckCircle, StopCircle,
-  Camera, FileText, MapPin, Clock, Shield, X, AlertTriangle
-} from 'lucide-react';
-import { useAppStore } from '../store/useAppStore';
-import api from '../services/api';
+import { Shield, Lock, FileAudio, Video, Map, Clock, Cloud, UploadCloud, ChevronRight, MapPin } from 'lucide-react';
+import Background from '../components/Background';
 
 export default function EvidenceVault() {
-  const [mode, setMode] = useState('idle'); // idle, recording-video, recording-audio, uploading, success
-  const [recordTime, setRecordTime] = useState(0);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [preview, setPreview] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState('');
-  const fileInputRef = useRef(null);
-  const mediaRecorderRef = useRef(null);
-  const streamRef = useRef(null);
-  const timerRef = useRef(null);
-  const chunksRef = useRef([]);
-  const navigate = useNavigate();
-  const currentLocation = useAppStore(state => state.currentLocation);
-
-  const startVideoRecording = async () => {
-    try {
-      setError('');
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: true
-      });
-      streamRef.current = stream;
-      chunksRef.current = [];
-
-      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-      recorder.onstop = () => handleRecordingComplete('video');
-      recorder.start();
-
-      mediaRecorderRef.current = recorder;
-      setMode('recording-video');
-      setRecordTime(0);
-      timerRef.current = setInterval(() => setRecordTime(t => t + 1), 1000);
-    } catch (err) {
-      setError('Unable to access camera. Please check permissions.');
-    }
-  };
-
-  const startAudioRecording = async () => {
-    try {
-      setError('');
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-      chunksRef.current = [];
-
-      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-      recorder.onstop = () => handleRecordingComplete('audio');
-      recorder.start();
-
-      mediaRecorderRef.current = recorder;
-      setMode('recording-audio');
-      setRecordTime(0);
-      timerRef.current = setInterval(() => setRecordTime(t => t + 1), 1000);
-    } catch (err) {
-      setError('Unable to access microphone. Please check permissions.');
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      mediaRecorderRef.current.stop();
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-    }
-    clearInterval(timerRef.current);
-  };
-
-  const handleRecordingComplete = async (type) => {
-    const blob = new Blob(chunksRef.current, { type: type === 'video' ? 'video/webm' : 'audio/webm' });
-    await uploadFile(blob, `${type}-${Date.now()}.webm`, type);
-  };
-
-  const handleFileSelect = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setSelectedFile(file);
-      setError('');
-      if (file.type.startsWith('image')) {
-        const reader = new FileReader();
-        reader.onload = (ev) => setPreview(ev.target.result);
-        reader.readAsDataURL(file);
-      } else {
-        setPreview(null);
-      }
-    }
-  };
-
-  const uploadFile = async (blob, filename, type) => {
-    setMode('uploading');
-    setUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', blob || selectedFile, filename || selectedFile?.name);
-      formData.append('type', type || (selectedFile?.type.startsWith('video') ? 'video' : selectedFile?.type.startsWith('audio') ? 'audio' : 'image'));
-      formData.append('timestamp', new Date().toISOString());
-      if (currentLocation) {
-        formData.append('location', JSON.stringify(currentLocation));
-      }
-
-      await api.post('/api/evidence/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      setMode('success');
-    } catch (err) {
-      setError('Upload failed. Please try again.');
-      setMode('idle');
-    }
-    setUploading(false);
-  };
-
-  const handleUpload = () => {
-    if (selectedFile) uploadFile(null, null, null);
-  };
-
-  const formatTime = (s) => {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
-  };
+  const vaultItems = [
+    { type: 'audio', title: 'SOS Recording #8942', date: 'Oct 12, 2026 - 23:42', duration: '04:12', location: 'Sector 42, DLF', encrypted: true, synced: true },
+    { type: 'video', title: 'Auto-Capture Video', date: 'Oct 12, 2026 - 23:43', duration: '01:05', location: 'Sector 42, DLF', encrypted: true, synced: true },
+    { type: 'gps', title: 'Route Deviation Timeline', date: 'Sep 28, 2026 - 19:15', duration: '12:00', location: 'MG Road', encrypted: true, synced: true },
+    { type: 'audio', title: 'Voice Trigger Recording', date: 'Sep 10, 2026 - 18:30', duration: '00:45', location: 'Cyber City', encrypted: true, synced: false },
+  ];
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <button
-        onClick={() => navigate('/user/evidence')}
-        className="flex items-center gap-2 text-body-sm text-muted hover:text-ink transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back to Evidence
-      </button>
+    <div className="min-h-screen relative font-sans overflow-hidden text-white pt-24 pb-32">
+      <div className="max-w-6xl mx-auto px-6">
 
-      <div>
-        <h1 className="font-display text-display-sm text-ink" style={{ letterSpacing: '-0.02em' }}>
-          Capture Evidence
-        </h1>
-        <p className="text-body-sm text-muted mt-1">Record or upload evidence — encrypted and timestamped</p>
-      </div>
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col md:flex-row items-start md:items-end justify-between gap-6 mb-12"
+        >
+          <div>
+            <div className="flex items-center gap-3 mb-3 text-royal">
+              <Lock className="w-6 h-6" />
+              <span className="font-bold tracking-widest uppercase text-sm">Military-Grade Encryption</span>
+            </div>
+            <h1 className="text-4xl md:text-6xl font-bold font-sora text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-500">
+              Evidence Vault
+            </h1>
+            <p className="text-gray-400 mt-2 max-w-lg">All emergency data is instantly encrypted and beamed to decentralized cloud storage. It cannot be deleted locally.</p>
+          </div>
 
-      {error && (
-        <div className="p-3 bg-error/5 border border-error/20 rounded-lg flex items-center gap-3">
-          <AlertTriangle className="w-5 h-5 text-error shrink-0" />
-          <p className="text-body-sm text-error">{error}</p>
-          <button onClick={() => setError('')} className="ml-auto text-muted-soft hover:text-ink">
-            <X className="w-4 h-4" />
+          <div className="flex items-center gap-4 bg-glass border border-glassBorder p-4 rounded-2xl shadow-xl">
+            <div className="w-12 h-12 rounded-full bg-emeraldLight/20 flex items-center justify-center">
+              <Cloud className="w-6 h-6 text-emeraldLight" />
+            </div>
+            <div>
+              <div className="text-sm text-gray-400 font-medium">Cloud Sync Status</div>
+              <div className="text-emeraldLight font-bold">100% Secured</div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Sync Simulation */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.2 }}
+          className="w-full bg-gradient-to-r from-royal/20 to-indigo/20 border border-royal/30 rounded-3xl p-6 mb-10 flex items-center justify-between"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-full bg-indigo/40 flex items-center justify-center animate-pulse">
+              <UploadCloud className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <div className="font-bold">Continuous Backup Active</div>
+              <div className="text-sm text-gray-300">Unsaid is currently monitoring network integrity.</div>
+            </div>
+          </div>
+          <button className="px-6 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-full text-sm font-semibold transition-colors">
+            Force Verify
           </button>
-        </div>
-      )}
+        </motion.div>
 
-      {mode === 'success' ? (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="card-cream p-8 text-center"
-        >
-          <div className="w-16 h-16 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-4">
-            <CheckCircle className="w-8 h-8 text-success" />
-          </div>
-          <h3 className="text-title-md text-ink mb-2">Evidence Saved</h3>
-          <p className="text-body-sm text-muted mb-6">Your evidence has been encrypted and stored securely</p>
-          <div className="flex gap-3 justify-center">
-            <button onClick={() => { setMode('idle'); setSelectedFile(null); setPreview(null); }} className="btn-secondary">
-              Capture More
-            </button>
-            <button onClick={() => navigate('/user/evidence')} className="btn-primary">
-              View Evidence Vault
-            </button>
-          </div>
-        </motion.div>
-      ) : mode === 'uploading' ? (
-        <div className="card-cream p-8 text-center">
-          <Loader2 className="w-10 h-10 text-primary animate-spin mx-auto mb-4" />
-          <p className="text-body font-medium text-ink">Uploading evidence...</p>
-          <p className="text-body-sm text-muted mt-1">Encrypting and storing securely</p>
-        </div>
-      ) : mode.startsWith('recording') ? (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className={`card-cream p-6 border-2 ${
-            mode === 'recording-video' ? 'border-primary' : 'border-accent-teal'
-          }`}
-        >
-          <div className="text-center">
-            <div className={`w-20 h-20 rounded-full mx-auto mb-4 flex items-center justify-center ${
-              mode === 'recording-video' ? 'bg-primary/10' : 'bg-accent-teal/10'
-            }`}>
-              {mode === 'recording-video' ? (
-                <Camera className="w-10 h-10 text-primary animate-pulse" />
-              ) : (
-                <Mic className="w-10 h-10 text-accent-teal animate-pulse" />
-              )}
-            </div>
-            <p className="text-title-md text-ink mb-1">
-              {mode === 'recording-video' ? 'Recording Video' : 'Recording Audio'}
-            </p>
-            <p className="text-display-sm font-body font-medium text-primary mb-4">
-              {formatTime(recordTime)}
-            </p>
-            {mode === 'recording-video' && (
-              <p className="text-caption text-muted-soft mb-4">Max 30 seconds</p>
-            )}
-            <button onClick={stopRecording} className="btn-danger">
-              <StopCircle className="w-4 h-4" />
-              Stop Recording
-            </button>
-          </div>
-        </motion.div>
-      ) : (
+        {/* Vault List */}
         <div className="space-y-4">
-          {/* Quick Record */}
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={startVideoRecording}
-              className="card-cream p-6 text-center hover:shadow-md transition-all group"
+          <h2 className="font-sora font-semibold text-xl mb-4 text-gray-300">Recent Captures</h2>
+
+          {vaultItems.map((item, idx) => (
+            <motion.div
+              key={idx}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 + (idx * 0.1) }}
+              className="group relative bg-card/60 backdrop-blur-md border border-glassBorder rounded-2xl p-4 md:p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 hover:bg-glass hover:border-gray-600 transition-all cursor-pointer overflow-hidden"
             >
-              <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3 group-hover:bg-primary/20 transition-colors">
-                <Video className="w-7 h-7 text-primary" />
-              </div>
-              <p className="text-body-sm font-medium text-ink">Record Video</p>
-              <p className="text-caption text-muted-soft mt-1">Up to 30 seconds</p>
-            </button>
+              {/* Highlight bar */}
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-royal to-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
 
-            <button
-              onClick={startAudioRecording}
-              className="card-cream p-6 text-center hover:shadow-md transition-all group"
-            >
-              <div className="w-14 h-14 rounded-full bg-accent-teal/10 flex items-center justify-center mx-auto mb-3 group-hover:bg-accent-teal/20 transition-colors">
-                <Mic className="w-7 h-7 text-accent-teal" />
-              </div>
-              <p className="text-body-sm font-medium text-ink">Record Audio</p>
-              <p className="text-caption text-muted-soft mt-1">Auto-saves when done</p>
-            </button>
-          </div>
+              <div className="flex items-center gap-6">
+                <div className={`w-14 h-14 rounded-full flex items-center justify-center shrink-0 ${item.type === 'audio' ? 'bg-pink-500/20 text-pink-400' :
+                  item.type === 'video' ? 'bg-blue-500/20 text-blue-400' : 'bg-emerald-500/20 text-emerald-400'
+                  }`}>
+                  {item.type === 'audio' && <FileAudio className="w-6 h-6" />}
+                  {item.type === 'video' && <Video className="w-6 h-6" />}
+                  {item.type === 'gps' && <Map className="w-6 h-6" />}
+                </div>
 
-          {/* File Upload */}
-          <div className="card-cream p-6">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="video/*,audio/*,image/*"
-              onChange={handleFileSelect}
-              className="hidden"
-            />
-
-            {preview ? (
-              <div className="relative">
-                <img src={preview} alt="Preview" className="w-full h-48 object-cover rounded-lg" />
-                <button
-                  onClick={() => { setSelectedFile(null); setPreview(null); }}
-                  className="absolute top-2 right-2 w-8 h-8 rounded-full bg-ink/50 flex items-center justify-center text-white hover:bg-ink/70"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ) : (
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-hairline rounded-xl p-8 text-center hover:border-primary/30 transition-colors cursor-pointer"
-              >
-                <Upload className="w-8 h-8 text-muted-soft mx-auto mb-3" />
-                {selectedFile ? (
-                  <div>
-                    <p className="text-body-sm font-medium text-ink">{selectedFile.name}</p>
-                    <p className="text-caption text-muted-soft mt-1">
-                      {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
+                <div>
+                  <h3 className="font-bold text-lg">{item.title}</h3>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2 text-sm text-gray-400">
+                    <span className="flex items-center gap-1"><Clock className="w-4 h-4" /> {item.date} • {item.duration}</span>
+                    <span className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {item.location}</span>
                   </div>
-                ) : (
-                  <div>
-                    <p className="text-body-sm text-muted">Click to upload file</p>
-                    <p className="text-caption text-muted-soft mt-1">Video, audio, or image</p>
-                  </div>
-                )}
+                </div>
               </div>
-            )}
 
-            {selectedFile && (
-              <button onClick={handleUpload} disabled={uploading} className="btn-primary w-full mt-4">
-                {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Upload Evidence'}
-              </button>
-            )}
-          </div>
+              <div className="flex flex-row md:flex-col items-center md:items-end justify-between gap-4 md:gap-2">
+                <div className="flex gap-2">
+                  {item.encrypted && (
+                    <div className="bg-gray-800/80 border border-gray-700 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1 text-goldLight">
+                      <Lock className="w-3 h-3" /> Encrypted
+                    </div>
+                  )}
+                  {item.synced ? (
+                    <div className="bg-emerald-900/40 border border-emerald-900/50 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1 text-emeraldLight">
+                      <Cloud className="w-3 h-3" /> Synced
+                    </div>
+                  ) : (
+                    <div className="bg-yellow-900/40 border border-yellow-900/50 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1 text-yellow-500 animate-pulse">
+                      <UploadCloud className="w-3 h-3" /> Syncing...
+                    </div>
+                  )}
+                </div>
 
-          {/* Info */}
-          <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl">
-            <div className="flex items-start gap-3">
-              <Shield className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-              <div>
-                <p className="text-body-sm font-medium text-ink">End-to-End Encrypted</p>
-                <p className="text-caption text-muted-soft mt-0.5">
-                  All evidence is encrypted, timestamped, and stored securely. Location data is attached automatically.
-                </p>
+                <div className="hidden md:flex items-center text-gray-500 group-hover:text-white transition-colors text-sm font-semibold">
+                  View Data <ChevronRight className="w-4 h-4 ml-1" />
+                </div>
               </div>
-            </div>
-          </div>
+            </motion.div>
+          ))}
         </div>
-      )}
+
+      </div>
     </div>
   );
 }

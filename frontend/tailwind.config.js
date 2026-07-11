@@ -7,86 +7,38 @@ export default {
   theme: {
     extend: {
       colors: {
-        canvas: '#faf9f5',
-        'surface-soft': '#f5f0e8',
-        'surface-card': '#efe9de',
-        'surface-cream-strong': '#e8e0d2',
-        'surface-dark': '#181715',
-        'surface-dark-elevated': '#252320',
-        'surface-dark-soft': '#1f1e1b',
-        primary: {
-          DEFAULT: '#cc785c',
-          active: '#a9583e',
-          disabled: '#e6dfd8',
-        },
-        ink: '#141413',
-        body: '#3d3d3a',
-        'body-strong': '#252523',
-        muted: '#6c6a64',
-        'muted-soft': '#8e8b82',
-        hairline: '#e6dfd8',
-        'hairline-soft': '#ebe6df',
-        'on-primary': '#ffffff',
-        'on-dark': '#faf9f5',
-        'on-dark-soft': '#a09d96',
-        'accent-teal': '#5db8a6',
-        'accent-amber': '#e8a55a',
-        success: '#5db872',
-        warning: '#d4a017',
-        error: '#c64545',
+        background: '#09090b', // Deep dark
+        royal: '#6d28d9', // violet-700
+        indigo: '#4f46e5', // indigo-600
+        electric: '#3b82f6', // blue-500
+        glass: 'rgba(255, 255, 255, 0.05)',
+        glassBorder: 'rgba(255, 255, 255, 0.1)',
+        pinkAccent: '#ec4899', // pink-500
+        emeraldLight: '#10b981', // emerald-500
+        goldLight: '#f59e0b', // amber-500
+        danger: '#ef4444', // red-500
+        card: '#18181b', // zinc-900
       },
       fontFamily: {
-        display: ['"Cormorant Garamond"', '"Tiempos Headline"', 'Garamond', '"Times New Roman"', 'serif'],
-        body: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
-      },
-      borderRadius: {
-        'xs': '4px',
-        'sm': '6px',
-        'md': '8px',
-        'lg': '12px',
-        'xl': '16px',
-        'pill': '9999px',
-      },
-      spacing: {
-        'xxs': '4px',
-        'section': '96px',
-      },
-      fontSize: {
-        'display-xl': ['clamp(2.5rem, 1.5rem + 5vw, 4rem)', { lineHeight: '1.05', letterSpacing: '-0.03em', fontWeight: '500' }],
-        'display-lg': ['clamp(2rem, 1.2rem + 4vw, 3rem)', { lineHeight: '1.1', letterSpacing: '-0.02em', fontWeight: '500' }],
-        'display-md': ['clamp(1.5rem, 1rem + 2.5vw, 2.25rem)', { lineHeight: '1.15', letterSpacing: '-0.015em', fontWeight: '500' }],
-        'display-sm': ['clamp(1.25rem, 0.9rem + 1.75vw, 1.75rem)', { lineHeight: '1.2', letterSpacing: '-0.01em', fontWeight: '500' }],
-        'title-lg': ['clamp(1.1rem, 1rem + 0.5vw, 1.375rem)', { lineHeight: '1.3', fontWeight: '500' }],
-        'title-md': ['1.125rem', { lineHeight: '1.4', fontWeight: '500' }],
-        'title-sm': ['1rem', { lineHeight: '1.4', fontWeight: '500' }],
-        'body-md': ['1rem', { lineHeight: '1.55', fontWeight: '400' }],
-        'body-sm': ['0.875rem', { lineHeight: '1.55', fontWeight: '400' }],
-        'caption': ['0.8125rem', { lineHeight: '1.4', fontWeight: '500' }],
-        'caption-upper': ['0.75rem', { lineHeight: '1.4', fontWeight: '500', letterSpacing: '0.09em' }],
-        'code': ['0.875rem', { lineHeight: '1.6', fontWeight: '400' }],
-        'button': ['0.875rem', { lineHeight: '1', fontWeight: '500' }],
-        'nav-link': ['0.875rem', { lineHeight: '1.4', fontWeight: '500' }],
-      },
-      boxShadow: {
-        'hairline': '0 1px 3px rgba(20, 20, 19, 0.08)',
-        'elevation-1': '0 1px 2px rgba(20, 20, 19, 0.06), 0 1px 3px rgba(20, 20, 19, 0.1)',
-        'elevation-2': '0 4px 6px rgba(20, 20, 19, 0.07), 0 2px 4px rgba(20, 20, 19, 0.06)',
+        sans: ['Space Grotesk', 'Outfit', 'Sora', 'sans-serif'],
+        outfit: ['Outfit', 'sans-serif'],
       },
       animation: {
-        'fade-in': 'fade-in 0.4s ease-out forwards',
-        'slide-up': 'slide-up 0.5s ease-out forwards',
+        'blob': 'blob 7s infinite',
+        'aurora': 'aurora 15s linear infinite',
       },
       keyframes: {
-        'fade-in': {
-          from: { opacity: '0' },
-          to: { opacity: '1' },
+        blob: {
+          '0%': { transform: 'translate(0px, 0px) scale(1)' },
+          '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+          '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+          '100%': { transform: 'translate(0px, 0px) scale(1)' },
         },
-        'slide-up': {
-          from: { opacity: '0', transform: 'translateY(16px)' },
-          to: { opacity: '1', transform: 'translateY(0)' },
-        },
-      },
+        aurora: {
+          '0%, 100%': { backgroundPosition: '0% 50%' },
+          '50%': { backgroundPosition: '100% 50%' },
+        }
+      }
     },
   },
   plugins: [],

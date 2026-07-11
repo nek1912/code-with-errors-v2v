@@ -1,168 +1,139 @@
 import React, { useState } from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Home, Map, Brain, BookOpen, FolderOpen, User, LogOut,
-  Shield, Menu, X, Bell, ChevronRight
-} from 'lucide-react';
-import { useAppStore } from '../store/useAppStore';
-import { useEmergencyStore } from '../store/useEmergencyStore';
-import SmartAlertsSheet from './SmartAlertsSheet';
-import HudRings from './HudRings';
-
-const navItems = [
-  { path: '/user/home', label: 'Home', icon: Home },
-  { path: '/user/emergency', label: 'SOS', icon: Shield },
-  { path: '/user/map', label: 'Live Map', icon: Map },
-  { path: '/user/ai-chat', label: 'AI Chat', icon: Brain },
-  { path: '/user/learning-hub', label: 'Learning Hub', icon: BookOpen },
-  { path: '/user/evidence', label: 'Evidence', icon: FolderOpen },
-  { path: '/user/profile', label: 'Profile', icon: User },
-];
+import { Shield, Home, Map, MessageSquare, Menu, X, Settings as SettingsIcon, Bell, User } from 'lucide-react';
+import Background from './Background';
 
 export default function Layout() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [alertsOpen, setAlertsOpen] = useState(false);
-  const navigate = useNavigate();
-  const user = useAppStore(state => state.user);
-  const logout = useAppStore(state => state.logout);
-  const isEmergencyMode = useEmergencyStore(state => state.isEmergencyMode);
-  const emergencyAlerts = useEmergencyStore(state => state.emergencyAlerts);
+  const location = useLocation();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
+  const user = JSON.parse(localStorage.getItem('ss_user') || '{}');
+  const isGuardian = user.role === 'guardian';
+
+  const navLinks = isGuardian ? [
+    { name: 'Guardian Home', path: '/guardian-dashboard', icon: Shield },
+  ] : [
+    { name: 'Dashboard', path: '/dashboard', icon: Home },
+    { name: 'Unsaid AI', path: '/ai-companion', icon: MessageSquare },
+    { name: 'Live Map', path: '/live-journey', icon: Map },
+    { name: 'SOS', path: '/emergency', icon: Shield, isEmergency: true }
+  ];
 
   return (
-    <div className="min-h-screen bg-canvas flex">
-      {/* Mobile overlay */}
+    <div className="min-h-screen relative font-sans overflow-x-hidden text-gray-900 selection:bg-indigo/30">
+      <Background />
+
+      {/* Premium Glass Header */}
+      <header className="fixed top-0 left-0 w-full z-50 transition-all duration-300 bg-white/10 backdrop-blur-md border-b border-white/20">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+
+          {/* Logo */}
+          <Link to="/" className="flex items-center gap-3 group">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-royal to-electric p-0.5 shadow-[0_0_20px_rgba(109,40,217,0.4)] group-hover:shadow-[0_0_30px_rgba(79,70,229,0.6)] transition-shadow">
+              <div className="w-full h-full bg-background rounded-[10px] flex items-center justify-center">
+                <Shield className="w-5 h-5 text-electric group-hover:scale-110 transition-transform" />
+              </div>
+            </div>
+            <span className="font-sora font-semibold text-xl tracking-tight text-gray-900 group-hover:text-royal transition-all">
+              SafeSphere
+            </span>
+          </Link>
+
+          {/* Desktop Navigation */}
+          <nav className="hidden md:flex items-center gap-2 bg-glass border border-glassBorder rounded-full px-2 py-1.5">
+            {navLinks.map((link) => {
+              const Icon = link.icon;
+              const isActive = location.pathname === link.path;
+              return (
+                <Link
+                  key={link.name}
+                  to={link.path}
+                  className={`relative px-4 py-2 rounded-full flex items-center gap-2 text-sm font-medium transition-all duration-300 ${isActive ? 'text-gray-900' : 'text-gray-700 hover:text-gray-900'
+                    } ${link.isEmergency ? 'text-danger hover:text-red-600' : ''}`}
+                >
+                  {isActive && !link.isEmergency && (
+                    <motion.div
+                      layoutId="activeNavTab"
+                      className="absolute inset-0 bg-white/10 rounded-full"
+                    />
+                  )}
+                  {isActive && link.isEmergency && (
+                    <motion.div
+                      layoutId="activeNavTab"
+                      className="absolute inset-0 bg-danger/20 rounded-full"
+                    />
+                  )}
+                  <Icon className="w-4 h-4 relative z-10" />
+                  <span className="relative z-10">{link.name}</span>
+                </Link>
+              );
+            })}
+          </nav>
+
+          {/* User Controls */}
+          <div className="hidden md:flex items-center gap-4">
+            <button className="relative p-2 rounded-full text-gray-400 hover:bg-glass hover:text-white transition-all">
+              <Bell className="w-5 h-5" />
+              <span className="absolute top-1.5 right-2 w-2 h-2 rounded-full bg-pinkAccent"></span>
+            </button>
+            <Link to="/profile" className="p-2 rounded-full text-gray-400 hover:bg-glass hover:text-white transition-all">
+              <SettingsIcon className="w-5 h-5" />
+            </Link>
+            <Link to="/profile">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo to-emeraldLight p-0.5 cursor-pointer">
+                <div className="w-full h-full bg-card rounded-full overflow-hidden flex items-center justify-center">
+                  <User className="w-5 h-5 text-gray-300" />
+                </div>
+              </div>
+            </Link>
+          </div>
+
+          {/* Mobile Menu Button */}
+          <button
+            className="md:hidden p-2 text-gray-300"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          >
+            {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+        </div>
+      </header>
+
+      {/* Mobile Menu Overlay */}
       <AnimatePresence>
-        {sidebarOpen && (
+        {isMobileMenuOpen && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-ink/30 backdrop-blur-sm z-40 lg:hidden"
-            onClick={() => setSidebarOpen(false)}
-          />
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed inset-x-0 top-20 z-40 bg-background/95 backdrop-blur-xl border-b border-glassBorder p-6 md:hidden"
+          >
+            <nav className="flex flex-col gap-4">
+              {navLinks.map((link) => {
+                const Icon = link.icon;
+                const isActive = location.pathname === link.path;
+                return (
+                  <Link
+                    key={link.name}
+                    to={link.path}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={`flex items-center gap-3 p-4 rounded-xl ${isActive ? 'bg-glass text-white' : 'text-gray-400'
+                      } ${link.isEmergency ? 'text-danger bg-danger/10' : ''}`}
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span className="font-medium">{link.name}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+          </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Sidebar */}
-      <aside
-        className={`fixed inset-y-0 left-0 z-50 w-[260px] bg-canvas border-r border-hairline-soft flex flex-col transition-transform duration-300 lg:translate-x-0 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        {/* Logo */}
-        <div className="flex items-center justify-between h-16 px-5 border-b border-hairline-soft">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-md bg-primary flex items-center justify-center">
-              <Shield className="w-4 h-4 text-on-primary" />
-            </div>
-            <span className="font-display text-lg text-ink tracking-tight">SafeSphere</span>
-          </div>
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="lg:hidden text-muted-soft hover:text-muted p-1"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Nav items */}
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {navItems.map(item => {
-            const Icon = item.icon;
-            return (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                onClick={() => setSidebarOpen(false)}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-lg text-body-sm font-medium transition-all group ${
-                    isActive
-                      ? 'bg-surface-soft text-ink'
-                      : 'text-muted hover:text-body hover:bg-surface-soft/50'
-                  }`
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    <Icon className={`w-4.5 h-4.5 ${isActive ? 'text-primary' : 'text-muted-soft group-hover:text-muted'}`} />
-                    <span>{item.label}</span>
-                    {item.label === 'SOS' && isEmergencyMode && (
-                      <span className="ml-auto w-2 h-2 rounded-full bg-error animate-pulse" />
-                    )}
-                    {isActive && (
-                      <ChevronRight className="ml-auto w-3.5 h-3.5 text-muted-soft" />
-                    )}
-                  </>
-                )}
-              </NavLink>
-            );
-          })}
-        </nav>
-
-        {/* Bottom section */}
-        <div className="p-4 border-t border-hairline-soft">
-          <div className="flex items-center gap-3 px-3 py-2 mb-2">
-            <div className="w-8 h-8 rounded-full bg-surface-soft border border-hairline flex items-center justify-center">
-              <span className="text-caption font-medium text-ink">
-                {user?.name?.charAt(0)?.toUpperCase() || 'U'}
-              </span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-body-sm font-medium text-ink truncate">{user?.name || 'User'}</p>
-              <p className="text-caption text-muted-soft truncate">{user?.email}</p>
-            </div>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-body-sm text-muted hover:text-error hover:bg-error/5 transition-all"
-          >
-            <LogOut className="w-4 h-4" />
-            Sign out
-          </button>
-        </div>
-      </aside>
-
-      {/* Main content */}
-      <div className="flex-1 flex flex-col lg:ml-[260px]">
-        {/* Top bar */}
-        <header className="sticky top-0 z-30 h-16 bg-canvas/80 backdrop-blur-md border-b border-hairline-soft flex items-center justify-between px-5">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="lg:hidden text-muted-soft hover:text-muted p-1 -ml-1"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-
-          <div className="flex items-center gap-3 ml-auto">
-            <button
-              onClick={() => setAlertsOpen(true)}
-              className="relative p-2 text-muted-soft hover:text-muted hover:bg-surface-soft rounded-lg transition-all"
-            >
-              <Bell className="w-5 h-5" />
-              {emergencyAlerts.length > 0 && (
-                <span className="absolute top-1 right-1 w-2 h-2 bg-error rounded-full animate-pulse" />
-              )}
-            </button>
-          </div>
-        </header>
-
-        {/* Page content */}
-        <main className="flex-1 p-5 md:p-8 lg:p-10 max-w-7xl w-full mx-auto">
-          <Outlet />
-        </main>
-      </div>
-
-      {/* HUD Rings overlay */}
-      <HudRings />
-
-      {/* Alerts sheet */}
-      <SmartAlertsSheet open={alertsOpen} onOpenChange={setAlertsOpen} />
+      {/* Main View Area */}
+      <main className="w-full h-full pt-20">
+        <Outlet />
+      </main>
     </div>
   );
 }
